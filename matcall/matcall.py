@@ -115,8 +115,6 @@ class MatCaller:
     __all_methods__ = ["addpath", "console", "translate", "eval", "workspace"]
     
     def __init__(self):
-        ENGINE = ENGINE
-
         if ("MATLABPATH" in os.environ.keys()):
             root = os.environ["MATLABPATH"]
             ENGINE.addpath(root)
@@ -371,7 +369,6 @@ class MatClass:
     by NewClass._send() only when it is needed.
     """
     _classes = {} # name -> class
-    _eng = ENGINE
     
     def __init__(self, obj):
         self._obj = obj
