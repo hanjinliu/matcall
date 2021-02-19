@@ -530,7 +530,7 @@ def translate_obj(obj):
     _real_name = ENGINE.feval("class", obj, nargout=1)
     
     if (_real_name == "function_handle"):
-        return MatFunction(_real_name)
+        return MatFunction(ENGINE.func2str(obj, nargout=1))
     
     if ("." in _real_name):
         newclass_name = "_".join(_real_name.split("."))
