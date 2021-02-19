@@ -260,8 +260,12 @@ class MatCaller:
             return None
         
         if (nargout < 0):
-            if ("=" in matlab_input):
+            if (";" in matlab_input):
                 nargout = 0
+            elif ("=" in matlab_input):
+                nargout = 0
+            elif("@" in matlab_input):
+                nargout = 1
             elif ("(" in matlab_input):
                 funcname, _ = matlab_input.split("(", 1)
                 nargout = int(self._eng.nargout(funcname, nargout=1))
@@ -342,6 +346,18 @@ class MatFunction:
         """
         self.eng.doc(self.name, nargout=0)
         return None
+    
+    def as_handle(self):
+        """
+        Convert to a MATLAB function handle.
+
+        Returns
+        -------
+        matlab.object
+            function handle of self.
+        """
+        return self.eng.eval(f"@{self.name}", nargout=1)
+
 
 class MatClass:
     """
@@ -373,6 +389,9 @@ class MatClass:
         object of newly defined class.
         """        
         _real_name = cls._eng.feval("class", obj, nargout=1)
+        
+        if (_real_name == "function_handle"):
+            return MatFunction(_real_name)
         
         if ("." in _real_name):
             newclass_name = "_".join(_real_name.split("."))
@@ -566,8 +585,8 @@ def to_matobj(pyobj):
         matobj = pyobj
     elif (isinstance(pyobj, (dict, MatStruct))):
         matobj = {k:to_matobj(v) for k, v in pyobj.items()}
-    elif (hasattr(pyobj, "__list__")):
-        to_matobj(list(pyobj))
+    elif (isinstance(pyobj, MatFunction)):
+        matobj = pyobj.as_handle()
     elif (isinstance(pyobj, MatObject)):
         matobj = pyobj
     elif (isinstance(pyobj, MatClass)):
