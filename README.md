@@ -37,6 +37,7 @@ mat.addpath(r"C:\Users\...", child=True)
 |`char`|`str`|
 |`cell`|`list`|
 |`struct`|`MatStruct` object|
+|`function_handle`|`MatFunction` object|
 |others|`MatClass` object|
 
 ## MATLAB to Python conversion table
@@ -48,7 +49,8 @@ mat.addpath(r"C:\Users\...", child=True)
 |`str`|`char`|
 |`list` or `tuple`|`cell`|
 |`dict` or `MatStruct`|`struct`|
-|`ndarray`|`matrix`|
+|`ndarray`|matrix|
+|`MatFunction`|`function_handle`|
 
 ## Basic Usage
 
@@ -69,7 +71,7 @@ out
 # array([1.        , 1.41421356, 1.73205081, 2.        , 2.23606798])
 ```
 
-MATLAB function can be translated to Python function by
+MATLAB functions can be translated to Python function by
 
 ```python
 mMax = mat.translate("max")
@@ -84,6 +86,22 @@ mMax(np.array([3,6,4]))
 #  --- Output ---
 # [6, 2.0]
 ```
+
+MATLAB lambda function is also accessible.
+```python
+sq = mat.translate("@(t)t^2")
+sq
+
+#  --- Output ---
+# MatFunction<@(t)t^2>
+```
+```python
+sq(10)
+
+#  --- Output ---
+# 100
+```
+
 Translation of MATLAB class constructor is also possible. Here constructor (not the class itself!) is returned and Python class will be dynamically defined with it. Same object
 is sent to MATLAB workspace only when it's needed.
 

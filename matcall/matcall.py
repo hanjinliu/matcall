@@ -115,11 +115,9 @@ class MatCaller:
     __all_methods__ = ["addpath", "console", "translate", "eval", "workspace"]
     
     def __init__(self):
-        self._eng = ENGINE
-
         if ("MATLABPATH" in os.environ.keys()):
             root = os.environ["MATLABPATH"]
-            self._eng.addpath(root)
+            ENGINE.addpath(root)
         
     def addpath(self, dirpath:str, child:bool=False):
         """
@@ -137,7 +135,7 @@ class MatCaller:
         if (not os.path.exists(dirpath)):
             raise FileNotFoundError(f"Path '{dirpath}' does not exist.")
         
-        self._eng.addpath(dirpath)
+        ENGINE.addpath(dirpath)
         
         if child:
             paths = glob.glob(f"{dirpath}{os.sep}**{os.sep}", recursive=True)
@@ -145,7 +143,7 @@ class MatCaller:
                 filelist = os.listdir(path)
                 for file in filelist:
                     if file.endswith(".m"):
-                        self._eng.addpath(path)
+                        ENGINE.addpath(path)
                         break
                     
         return None
@@ -167,24 +165,25 @@ class MatCaller:
             if (_in == "return"):
                 break
             elif (_in.startswith("return ")):
-                val = _in.strip(";").split(" ")
-                if (len(val) > 2):
-                    print("Syntax Error.")
+                val = _in[7:].strip(";")
+                ifexist = ENGINE.exist(val[1], nargout=1)
+                if (ifexist):
+                    obj = ENGINE.workspace[val[1]]
+                    _out = to_pyobj(obj)
+                    break
                 else:
-                    ifexist = self._eng.exist(val[1], nargout=1)
-                    if (ifexist):
-                        obj = self._eng.workspace[val[1]]
-                        _out = to_pyobj(obj)
+                    try:
+                        _out = self.eval(val)
                         break
-                    else:
-                        print(f"NameError: '{val[1]}' does not exists in the MATLAB workspace.")
+                    except:
+                        print(f"Error: Invalid return value.")
                     
             elif (_in == "exit"):
                 _out = None
                 break
             else:
                 try:
-                    _disp = self._eng.evalc(_in, nargout=1)
+                    _disp = ENGINE.evalc(_in, nargout=1)
                 except Exception as e:
                     err_msg = str(e)
                     if (err_msg.startswith("Error: ")):
@@ -238,10 +237,10 @@ class MatCaller:
         if (import_as in self.__all_methods__):
             raise ValueError(f"Cannot overload MatCaller member function: {import_as}")
         
-        if (import_as.startswith("__")):
+        if (import_as.startswith("__") and import_as.endswith("__")):
             raise ValueError("Avoid names that start with '__'.")
-            
-        setattr(self, import_as, func)
+        
+        import_as.startswith("@") or setattr(self, import_as, func)
         
         return func
     
@@ -260,11 +259,15 @@ class MatCaller:
             return None
         
         if (nargout < 0):
-            if ("=" in matlab_input):
+            if (";" in matlab_input):
                 nargout = 0
+            elif ("=" in matlab_input):
+                nargout = 0
+            elif("@" in matlab_input):
+                nargout = 1
             elif ("(" in matlab_input):
                 funcname, _ = matlab_input.split("(", 1)
-                nargout = int(self._eng.nargout(funcname, nargout=1))
+                nargout = int(ENGINE.nargout(funcname, nargout=1))
                 if (nargout < 0):
                     nargout = 1
             elif (" " in matlab_input):
@@ -272,7 +275,7 @@ class MatCaller:
             else:
                 nargout = 1
         
-        _out = self._eng.eval(matlab_input, nargout=nargout)
+        _out = ENGINE.eval(matlab_input, nargout=nargout)
         _out_py = to_pyobj(_out)
         return _out_py    
 
@@ -280,7 +283,7 @@ class MatCaller:
         """
         Open the MATLAB workspace window.
         """
-        self._eng.feval("workspace", nargout=0)
+        ENGINE.feval("workspace", nargout=0)
         return None
     
 
@@ -294,7 +297,7 @@ class MatFunction:
         """
         Parameters
         ----------
-        name : str
+        name : str or matlab.object of function_handle
             The name of function used in MATLAB
         caller : MatCaller object
             MatCaller object whose enging will be used.
@@ -305,20 +308,37 @@ class MatFunction:
         Raises
         ------
         NameError
-            If function 'name' doesn't exist in MATLAB.
-        """        
+            If function 'name' doesn't exist in MATLAB. Lambda function will not raise
+            NameError.
+        """
+        # determine fhandle and name
+        if (isinstance(name, str)):
+            if (name.startswith("@")):
+                # lambda function
+                self.fhandle = ENGINE.eval(name, nargout=1) 
+            else:
+                # symbolic function
+                if (not hasattr(ENGINE, name)):
+                    raise NameError(f"Unrecognized function: {name}")
+                self.fhandle = ENGINE.eval("@" + name, nargout=1)
+            self.name = name
+            
+        elif (isinstance(name, MatObject)):
+            # function handle
+            self.fhandle = name
+            self.name = ENGINE.func2str(name)
+        else:
+            raise TypeError("'name' must be str or matlab.object of function_handle")
         
-        self.name = name
-        self.eng = ENGINE
-        
-        if (not hasattr(self.eng, name)):
-            raise NameError(f"Unrecognized function: {name}")
-        
+        # determine nargout
         if (nargout < 0):
-            nargout = int(self.eng.nargout(self.name, nargout=1))
-            if (nargout < 0):
+            if (self.name.startswith("@")):
                 nargout = 1
-                
+            else:
+                nargout = int(ENGINE.nargout(name, nargout=1))
+                if (nargout < 0):
+                    nargout = 1
+                    
         self.nargout = nargout
     
     def __repr__(self):
@@ -329,7 +349,7 @@ class MatFunction:
         inputlist = map(to_matobj, argin)
                 
         # run function
-        outputlist = self.eng.feval(self.name, *inputlist, nargout=self.nargout)
+        outputlist = ENGINE.feval(self.fhandle, *inputlist, nargout=self.nargout)
         
         # process output
         pyobj = to_pyobj(outputlist)
@@ -340,8 +360,9 @@ class MatFunction:
         """
         Open a window and search for the docstring of the function.
         """
-        self.eng.doc(self.name, nargout=0)
+        ENGINE.doc(self.name, nargout=0)
         return None
+
 
 class MatClass:
     """
@@ -356,46 +377,9 @@ class MatClass:
     by NewClass._send() only when it is needed.
     """
     _classes = {} # name -> class
-    _eng = ENGINE
     
-    @classmethod
-    def _make_class(cls, obj):
-        """
-        Dynamically define a class based on MATLAB class.
-
-        Parameters
-        ----------
-        obj : matlab.object
-            The object handle from which new class to be defined will make reference.
-
-        Return
-        -------
-        object of newly defined class.
-        """        
-        _real_name = cls._eng.feval("class", obj, nargout=1)
-        
-        if ("." in _real_name):
-            newclass_name = "_".join(_real_name.split("."))
-        else:
-            newclass_name = _real_name
-        
-        if (newclass_name in cls._classes):
-            newclass = cls._classes[newclass_name]
-        else:
-            # Prepare class methods
-            attrs = dict(
-                _record = 0,
-                _real_name = _real_name,
-                _properties = cls._eng.properties(_real_name, nargout=1),
-                _methods = cls._eng.methods(_real_name, nargout=1)
-            )
-            newclass = type(newclass_name, (cls,), attrs)
-            cls._classes[newclass_name] = newclass
-            
-        new = newclass()
-        new._obj = obj
-        
-        return new
+    def __init__(self, obj):
+        self._obj = obj
     
     def __repr__(self):
         return f"MatClass<{self.__class__._real_name}>"
@@ -409,14 +393,14 @@ class MatClass:
         
         elif (key in self._properties):
             objname = self._send()
-            value = self._eng.eval(f"{objname}.{key}", nargout=1)
+            value = ENGINE.eval(f"{objname}.{key}", nargout=1)
             return to_pyobj(value)
         
         elif (key in self._methods):
             # Re-define a method. See MatFunction.__call__().
             def func(*argin, nargout=1):
                 inputlist = map(to_matobj, argin)
-                outputlist = self._eng.feval(key, self._obj, *inputlist, nargout=nargout)
+                outputlist = ENGINE.feval(key, self._obj, *inputlist, nargout=nargout)
                 pyobj = to_pyobj(outputlist)
                 return pyobj
             
@@ -434,13 +418,13 @@ class MatClass:
             if ("set" in self.__class__._methods):
                 self.set(key, value)
             elif (isinstance(value, bool)):
-                self._eng.eval(f"{objname}.{key}={str(value).lower()};", nargout=0)   
+                ENGINE.eval(f"{objname}.{key}={str(value).lower()};", nargout=0)   
             elif (isinstance(value, (int, float))):
-                self._eng.eval(f"{objname}.{key}={value};", nargout=0)
+                ENGINE.eval(f"{objname}.{key}={value};", nargout=0)
             elif (isinstance(value, str)):
-                self._eng.eval(f"{objname}.{key}='{value}';", nargout=0)
+                ENGINE.eval(f"{objname}.{key}='{value}';", nargout=0)
             elif (isinstance(value, np.ndarray) and value.ndim == 1):
-                self._eng.eval(f"{objname}.{key}={list(value)};", nargout=0)
+                ENGINE.eval(f"{objname}.{key}={list(value)};", nargout=0)
             else:
                 raise AttributeError(f"Complicated property setting is not "\
                     "supported in {self.__class__._real_name}.")
@@ -463,7 +447,7 @@ class MatClass:
         clsname = self.__class__.__name__
         objname = f"{clsname}_No{self.__class__._record}"
         self._objname = objname
-        self._eng.workspace[self._objname] = to_matobj(self._obj)
+        ENGINE.workspace[self._objname] = to_matobj(self._obj)
         self.__class__._record += 1
         return objname
 
@@ -537,7 +521,46 @@ class MatStruct:
     def items(self):
         for k in self._all:
             yield k, getattr(self, k)
+
+def translate_obj(obj):
+    """
+    Dynamically define a class based on MATLAB class.
+
+    Parameters
+    ----------
+    obj : matlab.object
+        The object handle from which new class to be defined will make reference.
+
+    Return
+    -------
+    object of newly defined class, or MatFunction.
+    """        
+    _real_name = ENGINE.feval("class", obj, nargout=1)
     
+    if (_real_name == "function_handle"):
+        return MatFunction(obj)
+    
+    if ("." in _real_name):
+        newclass_name = "_".join(_real_name.split("."))
+    else:
+        newclass_name = _real_name
+    
+    if (newclass_name in MatClass._classes):
+        newclass = MatClass._classes[newclass_name]
+    else:
+        # Prepare class methods
+        attrs = dict(
+            _record = 0,
+            _real_name = _real_name,
+            _properties = ENGINE.properties(_real_name, nargout=1),
+            _methods = ENGINE.methods(_real_name, nargout=1)
+        )
+        newclass = type(newclass_name, (MatClass,), attrs)
+        MatClass._classes[newclass_name] = newclass
+        
+    new = newclass(obj)
+    
+    return new       
     
     
 def to_matobj(pyobj):
@@ -566,12 +589,12 @@ def to_matobj(pyobj):
         matobj = pyobj
     elif (isinstance(pyobj, (dict, MatStruct))):
         matobj = {k:to_matobj(v) for k, v in pyobj.items()}
-    elif (hasattr(pyobj, "__list__")):
-        to_matobj(list(pyobj))
-    elif (isinstance(pyobj, MatObject)):
-        matobj = pyobj
+    elif (isinstance(pyobj, MatFunction)):
+        matobj = pyobj.fhandle
     elif (isinstance(pyobj, MatClass)):
         matobj = pyobj._obj
+    elif (isinstance(pyobj, MatObject)):
+        matobj = pyobj
     else:
         raise TypeError(f"Cannot convert {type(pyobj)} to MATLAB object.")
     
@@ -611,7 +634,7 @@ def to_pyobj(matobj):
         elif (_out_py.ndim == 2 and _out_py.shape[1] == 1):
             _out_py = _out_py[:, 0]
     elif (isinstance(matobj, MatObject)):
-        _out_py = MatClass._make_class(matobj)
+        _out_py = translate_obj(matobj)
     else:
         _out_py = matobj
 
