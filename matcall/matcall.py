@@ -263,7 +263,7 @@ class MatCaller:
                 nargout = 0
             elif ("=" in matlab_input):
                 nargout = 0
-            elif("@" in matlab_input):
+            elif ("@" in matlab_input):
                 nargout = 1
             elif ("(" in matlab_input):
                 funcname, _ = matlab_input.split("(", 1)
@@ -327,6 +327,7 @@ class MatFunction:
             # function handle
             self.fhandle = name
             self.name = ENGINE.func2str(name)
+            
         else:
             raise TypeError("'name' must be str or matlab.object of function_handle")
         
@@ -429,7 +430,7 @@ def setget_property(key):
         else:
             raise AttributeError("Complicated property setting is not "\
                 f"supported in {self.__class__._real_name}.")
-            
+        
     return property(getter, setter)
 
 def setget_methods(key):
@@ -518,6 +519,7 @@ class MatStruct:
         for k in self._all:
             yield k, getattr(self, k)
 
+
 def translate_obj(obj):
     """
     Dynamically define a class based on MATLAB class.
@@ -536,24 +538,20 @@ def translate_obj(obj):
     if (_real_name == "function_handle"):
         return MatFunction(obj)
     
-    if ("." in _real_name):
-        newclass_name = "_".join(_real_name.split("."))
-    else:
-        newclass_name = _real_name
+    newclass_name = "_".join(_real_name.split("."))
     
     if (newclass_name in MatClass._classes):
         newclass = MatClass._classes[newclass_name]
     else:
-        # Prepare class methods
-        attrs = dict(
-            _record = 0,
-            _real_name = _real_name
-        )
+        # Prepare class
+        attrs = dict(_record = 0, _real_name = _real_name)
         newclass = type(newclass_name, (MatClass,), attrs)
         MatClass._classes[newclass_name] = newclass
         
+        # define setter and getter
         for prop_name in ENGINE.properties(_real_name, nargout=1):
             setattr(newclass, prop_name, setget_property(prop_name))
+            
         for method_name in ENGINE.methods(_real_name, nargout=1):
             setattr(newclass, method_name, setget_methods(method_name))
         
