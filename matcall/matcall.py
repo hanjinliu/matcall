@@ -237,7 +237,7 @@ class MatCaller:
         if (import_as in self.__all_methods__):
             raise ValueError(f"Cannot overload MatCaller member function: {import_as}")
         
-        if (import_as.startswith("__")):
+        if (import_as.startswith("__") and import_as.endswith("__")):
             raise ValueError("Avoid names that start with '__'.")
             
         setattr(self, import_as, func)
@@ -297,7 +297,7 @@ class MatFunction:
         """
         Parameters
         ----------
-        name : str
+        name : str or matlab.object of function_handle
             The name of function used in MATLAB
         caller : MatCaller object
             MatCaller object whose enging will be used.
@@ -310,23 +310,35 @@ class MatFunction:
         NameError
             If function 'name' doesn't exist in MATLAB. Lambda function will not raise
             NameError.
-        """        
-        
-        if (name.startswith("@")):
-            if (nargout < 0):
-                nargout = 1 
-            self.islambda = True
-        
+        """
+        # determine fhandle and name
+        if (isinstance(name, str)):
+            if (name.startswith("@")):
+                # lambda function
+                self.fhandle = ENGINE.eval(name, nargout=1) 
+            else:
+                # symbolic function
+                if (not hasattr(ENGINE, name)):
+                    raise NameError(f"Unrecognized function: {name}")
+                self.fhandle = ENGINE.eval("@" + name, nargout=1)
+            self.name = name
+            
+        elif (isinstance(name, MatObject)):
+            # function handle
+            self.fhandle = name
+            self.name = ENGINE.func2str(name)
         else:
-            if (not hasattr(ENGINE, name)):
-                raise NameError(f"Unrecognized function: {name}")
-            if (nargout < 0):
+            raise TypeError("'name' must be str or matlab.object of function_handle")
+        
+        # determine nargout
+        if (nargout < 0):
+            if (self.name.startswith("@")):
+                nargout = 1
+            else:
                 nargout = int(ENGINE.nargout(name, nargout=1))
                 if (nargout < 0):
                     nargout = 1
-            self.islambda = False  
-        
-        self.name = name
+                    
         self.nargout = nargout
     
     def __repr__(self):
@@ -337,10 +349,7 @@ class MatFunction:
         inputlist = map(to_matobj, argin)
                 
         # run function
-        if (self.islambda):
-            outputlist = ENGINE.eval(f"feval({self.name},{','.join(map(str, inputlist))})", nargout=self.nargout)
-        else:    
-            outputlist = ENGINE.feval(self.name, *inputlist, nargout=self.nargout)
+        outputlist = ENGINE.feval(self.fhandle, *inputlist, nargout=self.nargout)
         
         # process output
         pyobj = to_pyobj(outputlist)
@@ -353,20 +362,6 @@ class MatFunction:
         """
         ENGINE.doc(self.name, nargout=0)
         return None
-    
-    def as_handle(self):
-        """
-        Convert to a MATLAB function handle.
-
-        Returns
-        -------
-        matlab.object
-            function handle of self.
-        """
-        if (self.islambda):
-            return ENGINE.eval(self.name, nargout=1)
-        else:
-            return ENGINE.eval(f"@{self.name}", nargout=1)
 
 
 class MatClass:
@@ -543,8 +538,7 @@ def translate_obj(obj):
     _real_name = ENGINE.feval("class", obj, nargout=1)
     
     if (_real_name == "function_handle"):
-        funcname = ENGINE.func2str(obj, nargout=1)
-        return MatFunction(funcname)
+        return MatFunction(obj)
     
     if ("." in _real_name):
         newclass_name = "_".join(_real_name.split("."))
@@ -596,7 +590,7 @@ def to_matobj(pyobj):
     elif (isinstance(pyobj, (dict, MatStruct))):
         matobj = {k:to_matobj(v) for k, v in pyobj.items()}
     elif (isinstance(pyobj, MatFunction)):
-        matobj = pyobj.as_handle()
+        matobj = pyobj.fhandle
     elif (isinstance(pyobj, MatClass)):
         matobj = pyobj._obj
     elif (isinstance(pyobj, MatObject)):
