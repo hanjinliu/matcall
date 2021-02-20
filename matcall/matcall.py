@@ -239,8 +239,8 @@ class MatCaller:
         
         if (import_as.startswith("__") and import_as.endswith("__")):
             raise ValueError("Avoid names that start with '__'.")
-            
-        setattr(self, import_as, func)
+        
+        import_as.startswith("@") or setattr(self, import_as, func)
         
         return func
     
