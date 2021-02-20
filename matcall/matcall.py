@@ -383,53 +383,6 @@ class MatClass:
     
     def __repr__(self):
         return f"MatClass<{self.__class__._real_name}>"
-        
-    def __getattribute__(self, key:str):
-        """
-        Get attribute method that enables getting MATLAB properties and methods.
-        """
-        if (key.startswith("_")):
-            return super().__getattribute__(key)
-        
-        elif (key in self._properties):
-            objname = self._send()
-            value = ENGINE.eval(f"{objname}.{key}", nargout=1)
-            return to_pyobj(value)
-        
-        elif (key in self._methods):
-            # Re-define a method. See MatFunction.__call__().
-            def func(*argin, nargout=1):
-                inputlist = map(to_matobj, argin)
-                outputlist = ENGINE.feval(key, self._obj, *inputlist, nargout=nargout)
-                pyobj = to_pyobj(outputlist)
-                return pyobj
-            
-            return func
-        
-        else:
-            raise AttributeError(f"Unknown property or method: {key}")
-    
-    def __setattr__(self, key: str, value):
-        if (key.startswith("_")):
-            super().__setattr__(key, value)
-            
-        elif (key in self.__class__._properties):
-            objname = self._send()
-            if ("set" in self.__class__._methods):
-                self.set(key, value)
-            elif (isinstance(value, bool)):
-                ENGINE.eval(f"{objname}.{key}={str(value).lower()};", nargout=0)   
-            elif (isinstance(value, (int, float))):
-                ENGINE.eval(f"{objname}.{key}={value};", nargout=0)
-            elif (isinstance(value, str)):
-                ENGINE.eval(f"{objname}.{key}='{value}';", nargout=0)
-            elif (isinstance(value, np.ndarray) and value.ndim == 1):
-                ENGINE.eval(f"{objname}.{key}={list(value)};", nargout=0)
-            else:
-                raise AttributeError(f"Complicated property setting is not "\
-                    "supported in {self.__class__._real_name}.")
-        else:
-            raise ValueError("Invalid attribution setting.")
     
     def _send(self):
         """
@@ -450,6 +403,49 @@ class MatClass:
         ENGINE.workspace[self._objname] = to_matobj(self._obj)
         self.__class__._record += 1
         return objname
+
+
+def setget_property(key):
+    def getter(self):
+        if (hasattr(self, "get")):
+            return to_pyobj(self.get(key))
+        else:
+            objname = self._send()
+            value = ENGINE.eval(f"{objname}.{key}", nargout=1)
+            return to_pyobj(value)
+    
+    def setter(self, value):
+        objname = self._send()
+        if (hasattr(self, "set")):
+            self.set(key, value)
+        if (isinstance(value, bool)):
+            ENGINE.eval(f"{objname}.{key}={str(value).lower()};", nargout=0)   
+        elif (isinstance(value, (int, float))):
+            ENGINE.eval(f"{objname}.{key}={value};", nargout=0)
+        elif (isinstance(value, str)):
+            ENGINE.eval(f"{objname}.{key}='{value}';", nargout=0)
+        elif (isinstance(value, np.ndarray) and value.ndim == 1):
+            ENGINE.eval(f"{objname}.{key}={list(value)};", nargout=0)
+        else:
+            raise AttributeError("Complicated property setting is not "\
+                f"supported in {self.__class__._real_name}.")
+            
+    return property(getter, setter)
+
+def setget_methods(key):
+    def getter(self):
+        def func(*argin, nargout=1):
+            inputlist = map(to_matobj, argin)
+            outputlist = ENGINE.feval(key, self._obj, *inputlist, nargout=nargout)
+            pyobj = to_pyobj(outputlist)
+            return pyobj
+            
+        return func
+    
+    def setter(self, value):
+        raise AttributeError("Cannot set value to methods.")
+    
+    return property(getter, setter)
 
 
 class MatStruct:
@@ -551,12 +547,15 @@ def translate_obj(obj):
         # Prepare class methods
         attrs = dict(
             _record = 0,
-            _real_name = _real_name,
-            _properties = ENGINE.properties(_real_name, nargout=1),
-            _methods = ENGINE.methods(_real_name, nargout=1)
+            _real_name = _real_name
         )
         newclass = type(newclass_name, (MatClass,), attrs)
         MatClass._classes[newclass_name] = newclass
+        
+        for prop_name in ENGINE.properties(_real_name, nargout=1):
+            setattr(newclass, prop_name, setget_property(prop_name))
+        for method_name in ENGINE.methods(_real_name, nargout=1):
+            setattr(newclass, method_name, setget_methods(method_name))
         
     new = newclass(obj)
     
