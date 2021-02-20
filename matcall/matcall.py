@@ -165,17 +165,18 @@ class MatCaller:
             if (_in == "return"):
                 break
             elif (_in.startswith("return ")):
-                val = _in.strip(";").split(" ")
-                if (len(val) > 2):
-                    print("Syntax Error.")
+                val = _in[7:].strip(";")
+                ifexist = ENGINE.exist(val[1], nargout=1)
+                if (ifexist):
+                    obj = ENGINE.workspace[val[1]]
+                    _out = to_pyobj(obj)
+                    break
                 else:
-                    ifexist = ENGINE.exist(val[1], nargout=1)
-                    if (ifexist):
-                        obj = ENGINE.workspace[val[1]]
-                        _out = to_pyobj(obj)
+                    try:
+                        _out = self.eval(val)
                         break
-                    else:
-                        print(f"NameError: '{val[1]}' does not exists in the MATLAB workspace.")
+                    except:
+                        print(f"Error: Invalid return value.")
                     
             elif (_in == "exit"):
                 _out = None
@@ -307,19 +308,25 @@ class MatFunction:
         Raises
         ------
         NameError
-            If function 'name' doesn't exist in MATLAB.
+            If function 'name' doesn't exist in MATLAB. Lambda function will not raise
+            NameError.
         """        
         
-        self.name = name
-        
-        if (not hasattr(ENGINE, name)):
-            raise NameError(f"Unrecognized function: {name}")
-        
-        if (nargout < 0):
-            nargout = int(ENGINE.nargout(self.name, nargout=1))
+        if (name.startswith("@")):
             if (nargout < 0):
-                nargout = 1
-                
+                nargout = 1 
+            self.islambda = True
+        
+        else:
+            if (not hasattr(ENGINE, name)):
+                raise NameError(f"Unrecognized function: {name}")
+            if (nargout < 0):
+                nargout = int(ENGINE.nargout(name, nargout=1))
+                if (nargout < 0):
+                    nargout = 1
+            self.islambda = False  
+        
+        self.name = name
         self.nargout = nargout
     
     def __repr__(self):
@@ -330,7 +337,10 @@ class MatFunction:
         inputlist = map(to_matobj, argin)
                 
         # run function
-        outputlist = ENGINE.feval(self.name, *inputlist, nargout=self.nargout)
+        if (self.islambda):
+            outputlist = ENGINE.eval(f"feval({self.name},{','.join(map(str, inputlist))})", nargout=self.nargout)
+        else:    
+            outputlist = ENGINE.feval(self.name, *inputlist, nargout=self.nargout)
         
         # process output
         pyobj = to_pyobj(outputlist)
@@ -353,7 +363,10 @@ class MatFunction:
         matlab.object
             function handle of self.
         """
-        return ENGINE.eval(f"@{self.name}", nargout=1)
+        if (self.islambda):
+            return ENGINE.eval(self.name, nargout=1)
+        else:
+            return ENGINE.eval(f"@{self.name}", nargout=1)
 
 
 class MatClass:
@@ -530,7 +543,8 @@ def translate_obj(obj):
     _real_name = ENGINE.feval("class", obj, nargout=1)
     
     if (_real_name == "function_handle"):
-        return MatFunction(ENGINE.func2str(obj, nargout=1))
+        funcname = ENGINE.func2str(obj, nargout=1)
+        return MatFunction(funcname)
     
     if ("." in _real_name):
         newclass_name = "_".join(_real_name.split("."))
