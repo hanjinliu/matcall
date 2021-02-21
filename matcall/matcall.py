@@ -118,6 +118,7 @@ class MatCaller:
         if ("MATLABPATH" in os.environ.keys()):
             root = os.environ["MATLABPATH"]
             ENGINE.addpath(root)
+        self.added_path = [root]
         
     def addpath(self, dirpath:str, child:bool=False):
         """
@@ -135,16 +136,19 @@ class MatCaller:
         if (not os.path.exists(dirpath)):
             raise FileNotFoundError(f"Path '{dirpath}' does not exist.")
         
-        ENGINE.addpath(dirpath)
-        
         if child:
             paths = glob.glob(f"{dirpath}{os.sep}**{os.sep}", recursive=True)
             for path in paths:
                 filelist = os.listdir(path)
                 for file in filelist:
                     if file.endswith(".m"):
+                        path = os.path.split(path)[0]
                         ENGINE.addpath(path)
+                        self.added_path.append(path)
                         break
+        else:
+            ENGINE.addpath(dirpath)
+            self.added_path.append(dirpath)
                     
         return None
     
