@@ -484,16 +484,19 @@ class MatStruct:
     Attribute '_all' and '_longest' does not conflict with other field names because symbols
     cannot start with underscore in MATLAB.
     """
-    __all_methods__ = ("as_dict", "keys", "items")
+    __all_methods__ = ("as_dict", "keys", "items", "_all")
     
-    def __init__(self, dict_):
+    def __init__(self, dict_=None):
+        if (dict_ is None):
+            dict_ = dict()
         super().__setattr__("_all", [])
-        super().__setattr__("_n_field", 0)
         for k, v in dict_.items():
             setattr(self, k, v)
-            self._all.append(k)
     
     def __getitem__(self, key):
+        """
+        To make MatStruct almost the same as dict.
+        """
         if (key in self._all):
             return getattr(self, key)
         else:
@@ -504,10 +507,13 @@ class MatStruct:
             raise ValueError(f"Cannot set field {key} because it "\
                               "conflicts with existing member function.")
         super().__setattr__(key, value)
-        super().__setattr__("_n_field", self._n_field + 1)
+        self._all.append(key)
+    
+    def __len__(self):
+        return len(self._all)
     
     def __repr__(self):
-        out = f"\nMatStruct with {self._n_field} fields:\n"
+        out = f"\nMatStruct with {len(self)} fields:\n"
         longest = max([len(s) for s in self._all])
         for k, v in self.items():
             out += " " * (longest - len(k) + 4)
@@ -516,7 +522,7 @@ class MatStruct:
             elif (isinstance(v, np.ndarray)):
                 description = f"np.ndarray {v.shape}"
             elif (isinstance(v, self.__class__)):
-                description = f"MatStruct object ({v._n_field} fields)"
+                description = f"MatStruct object ({len(v)} fields)"
             elif (isinstance(v, list)):
                 description = f"list (length {len(v)})"
             else:
