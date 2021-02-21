@@ -204,8 +204,8 @@ class MatCaller:
     def translate(self, funcname:str, nargout:int=-1, import_as=None, child=False):
         """
         Make MATLAB function without conversion between python object and MATLAB object.
-        This is the simplest way to run MATLAB function if no need for directly using
-        MATLAB objects.
+        This is the simplest way to run MATLAB function. This function also suppors
+        lambda function.
 
         Parameters
         ----------
@@ -261,9 +261,9 @@ class MatCaller:
         if (nargout < 0):
             if (";" in matlab_input):
                 nargout = 0
-            elif ("=" in matlab_input):
+            elif ("=" in matlab_input and "==" not in matlab_input):
                 nargout = 0
-            elif("@" in matlab_input):
+            elif ("@" in matlab_input):
                 nargout = 1
             elif ("(" in matlab_input):
                 funcname, _ = matlab_input.split("(", 1)
@@ -285,7 +285,7 @@ class MatCaller:
         """
         ENGINE.feval("workspace", nargout=0)
         return None
-    
+        
 
 class MatFunction:
     """
@@ -299,12 +299,19 @@ class MatFunction:
         ----------
         name : str or matlab.object of function_handle
             The name of function used in MATLAB
-        caller : MatCaller object
-            MatCaller object whose enging will be used.
         nargout : int, optional
             The number of output. Some functions are overloaded, therefore without nargout
             they may throw error. By default -1.
 
+        Attributes
+        ----------
+        fhandle : matlab.object
+            function_handle object of MATLAB engine.
+        name : str
+            the function name.
+        nargout : int
+            The number of output.
+            
         Raises
         ------
         NameError
@@ -327,6 +334,7 @@ class MatFunction:
             # function handle
             self.fhandle = name
             self.name = ENGINE.func2str(name)
+            
         else:
             raise TypeError("'name' must be str or matlab.object of function_handle")
         
@@ -383,53 +391,6 @@ class MatClass:
     
     def __repr__(self):
         return f"MatClass<{self.__class__._real_name}>"
-        
-    def __getattribute__(self, key:str):
-        """
-        Get attribute method that enables getting MATLAB properties and methods.
-        """
-        if (key.startswith("_")):
-            return super().__getattribute__(key)
-        
-        elif (key in self._properties):
-            objname = self._send()
-            value = ENGINE.eval(f"{objname}.{key}", nargout=1)
-            return to_pyobj(value)
-        
-        elif (key in self._methods):
-            # Re-define a method. See MatFunction.__call__().
-            def func(*argin, nargout=1):
-                inputlist = map(to_matobj, argin)
-                outputlist = ENGINE.feval(key, self._obj, *inputlist, nargout=nargout)
-                pyobj = to_pyobj(outputlist)
-                return pyobj
-            
-            return func
-        
-        else:
-            raise AttributeError(f"Unknown property or method: {key}")
-    
-    def __setattr__(self, key: str, value):
-        if (key.startswith("_")):
-            super().__setattr__(key, value)
-            
-        elif (key in self.__class__._properties):
-            objname = self._send()
-            if ("set" in self.__class__._methods):
-                self.set(key, value)
-            elif (isinstance(value, bool)):
-                ENGINE.eval(f"{objname}.{key}={str(value).lower()};", nargout=0)   
-            elif (isinstance(value, (int, float))):
-                ENGINE.eval(f"{objname}.{key}={value};", nargout=0)
-            elif (isinstance(value, str)):
-                ENGINE.eval(f"{objname}.{key}='{value}';", nargout=0)
-            elif (isinstance(value, np.ndarray) and value.ndim == 1):
-                ENGINE.eval(f"{objname}.{key}={list(value)};", nargout=0)
-            else:
-                raise AttributeError(f"Complicated property setting is not "\
-                    "supported in {self.__class__._real_name}.")
-        else:
-            raise ValueError("Invalid attribution setting.")
     
     def _send(self):
         """
@@ -450,6 +411,55 @@ class MatClass:
         ENGINE.workspace[self._objname] = to_matobj(self._obj)
         self.__class__._record += 1
         return objname
+
+
+def setget_property(key):
+    """
+    Dynamically define setter and getter for property.
+    """
+    def getter(self):
+        if (hasattr(self, "get")):
+            return to_pyobj(self.get(key))
+        else:
+            objname = self._send()
+            value = ENGINE.eval(f"{objname}.{key}", nargout=1)
+            return to_pyobj(value)
+    
+    def setter(self, value):
+        objname = self._send()
+        if (hasattr(self, "set")):
+            self.set(key, value)
+        elif (isinstance(value, bool)):
+            ENGINE.eval(f"{objname}.{key}={str(value).lower()};", nargout=0)   
+        elif (isinstance(value, (int, float))):
+            ENGINE.eval(f"{objname}.{key}={value};", nargout=0)
+        elif (isinstance(value, str)):
+            ENGINE.eval(f"{objname}.{key}='{value}';", nargout=0)
+        elif (isinstance(value, np.ndarray) and value.ndim == 1):
+            ENGINE.eval(f"{objname}.{key}={list(value)};", nargout=0)
+        else:
+            raise AttributeError("Complicated property setting is not "\
+                f"supported in {self.__class__._real_name}.")
+        
+    return property(getter, setter)
+
+def setget_methods(key):
+    """
+    Dynamically define setter and getter for methods.
+    """
+    def getter(self):
+        def func(*argin, nargout=1):
+            inputlist = map(to_matobj, argin)
+            outputlist = ENGINE.feval(key, self._obj, *inputlist, nargout=nargout)
+            pyobj = to_pyobj(outputlist)
+            return pyobj
+            
+        return func
+    
+    def setter(self, value):
+        raise AttributeError("Cannot set value to methods.")
+    
+    return property(getter, setter)
 
 
 class MatStruct:
@@ -473,7 +483,6 @@ class MatStruct:
     __all_methods__ = ("as_dict", "keys", "items")
     
     def __init__(self, dict_):
-        super().__setattr__("_longest", 0)
         super().__setattr__("_all", [])
         super().__setattr__("_n_field", 0)
         for k, v in dict_.items():
@@ -491,13 +500,13 @@ class MatStruct:
             raise ValueError(f"Cannot set field {key} because it "\
                               "conflicts with existing member function.")
         super().__setattr__(key, value)
-        super().__setattr__("_longest", max(self._longest, len(key)))
         super().__setattr__("_n_field", self._n_field + 1)
     
     def __repr__(self):
         out = f"\nMatStruct with {self._n_field} fields:\n"
+        longest = max([len(s) for s in self._all])
         for k, v in self.items():
-            out += " " * (self._longest - len(k) + 4)
+            out += " " * (longest - len(k) + 4)
             if (isinstance(v, BASIC_TYPES)):
                 description = v
             elif (isinstance(v, np.ndarray)):
@@ -522,6 +531,7 @@ class MatStruct:
         for k in self._all:
             yield k, getattr(self, k)
 
+
 def translate_obj(obj):
     """
     Dynamically define a class based on MATLAB class.
@@ -540,23 +550,22 @@ def translate_obj(obj):
     if (_real_name == "function_handle"):
         return MatFunction(obj)
     
-    if ("." in _real_name):
-        newclass_name = "_".join(_real_name.split("."))
-    else:
-        newclass_name = _real_name
+    newclass_name = "_".join(_real_name.split("."))
     
     if (newclass_name in MatClass._classes):
         newclass = MatClass._classes[newclass_name]
     else:
-        # Prepare class methods
-        attrs = dict(
-            _record = 0,
-            _real_name = _real_name,
-            _properties = ENGINE.properties(_real_name, nargout=1),
-            _methods = ENGINE.methods(_real_name, nargout=1)
-        )
+        # Prepare class
+        attrs = dict(_record = 0, _real_name = _real_name)
         newclass = type(newclass_name, (MatClass,), attrs)
         MatClass._classes[newclass_name] = newclass
+        
+        # define setter and getter
+        for prop_name in ENGINE.properties(_real_name, nargout=1):
+            setattr(newclass, prop_name, setget_property(prop_name))
+            
+        for method_name in ENGINE.methods(_real_name, nargout=1):
+            setattr(newclass, method_name, setget_methods(method_name))
         
     new = newclass(obj)
     

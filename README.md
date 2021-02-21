@@ -128,4 +128,6 @@ This is an example of how to manipulate the MATLAB figure from Python.
 
 A struct object in MATLAB is translated to dict object in Python by default. However, it is a little bit troublesome to access the contents of dict, compared to MATLAB struct (at least you need to type double quotation every time). Thus, here in matcall a `MatStruct` object is returned instead.
 
+Following example shows how to solve ODE using MATLAB `ode45` function.
+
 <img src="images/example_3.png" width="600">
