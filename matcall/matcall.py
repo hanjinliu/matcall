@@ -204,8 +204,8 @@ class MatCaller:
     def translate(self, funcname:str, nargout:int=-1, import_as=None, child=False):
         """
         Make MATLAB function without conversion between python object and MATLAB object.
-        This is the simplest way to run MATLAB function if no need for directly using
-        MATLAB objects.
+        This is the simplest way to run MATLAB function. This function also suppors
+        lambda function.
 
         Parameters
         ----------
@@ -261,7 +261,7 @@ class MatCaller:
         if (nargout < 0):
             if (";" in matlab_input):
                 nargout = 0
-            elif ("=" in matlab_input):
+            elif ("=" in matlab_input and "==" not in matlab_input):
                 nargout = 0
             elif ("@" in matlab_input):
                 nargout = 1
@@ -285,7 +285,7 @@ class MatCaller:
         """
         ENGINE.feval("workspace", nargout=0)
         return None
-    
+        
 
 class MatFunction:
     """
@@ -299,12 +299,19 @@ class MatFunction:
         ----------
         name : str or matlab.object of function_handle
             The name of function used in MATLAB
-        caller : MatCaller object
-            MatCaller object whose enging will be used.
         nargout : int, optional
             The number of output. Some functions are overloaded, therefore without nargout
             they may throw error. By default -1.
 
+        Attributes
+        ----------
+        fhandle : matlab.object
+            function_handle object of MATLAB engine.
+        name : str
+            the function name.
+        nargout : int
+            The number of output.
+            
         Raises
         ------
         NameError
@@ -407,6 +414,9 @@ class MatClass:
 
 
 def setget_property(key):
+    """
+    Dynamically define setter and getter for property.
+    """
     def getter(self):
         if (hasattr(self, "get")):
             return to_pyobj(self.get(key))
@@ -419,7 +429,7 @@ def setget_property(key):
         objname = self._send()
         if (hasattr(self, "set")):
             self.set(key, value)
-        if (isinstance(value, bool)):
+        elif (isinstance(value, bool)):
             ENGINE.eval(f"{objname}.{key}={str(value).lower()};", nargout=0)   
         elif (isinstance(value, (int, float))):
             ENGINE.eval(f"{objname}.{key}={value};", nargout=0)
@@ -434,6 +444,9 @@ def setget_property(key):
     return property(getter, setter)
 
 def setget_methods(key):
+    """
+    Dynamically define setter and getter for methods.
+    """
     def getter(self):
         def func(*argin, nargout=1):
             inputlist = map(to_matobj, argin)
@@ -470,7 +483,6 @@ class MatStruct:
     __all_methods__ = ("as_dict", "keys", "items")
     
     def __init__(self, dict_):
-        super().__setattr__("_longest", 0)
         super().__setattr__("_all", [])
         super().__setattr__("_n_field", 0)
         for k, v in dict_.items():
@@ -488,13 +500,13 @@ class MatStruct:
             raise ValueError(f"Cannot set field {key} because it "\
                               "conflicts with existing member function.")
         super().__setattr__(key, value)
-        super().__setattr__("_longest", max(self._longest, len(key)))
         super().__setattr__("_n_field", self._n_field + 1)
     
     def __repr__(self):
         out = f"\nMatStruct with {self._n_field} fields:\n"
+        longest = max([len(s) for s in self._all])
         for k, v in self.items():
-            out += " " * (self._longest - len(k) + 4)
+            out += " " * (longest - len(k) + 4)
             if (isinstance(v, BASIC_TYPES)):
                 description = v
             elif (isinstance(v, np.ndarray)):
