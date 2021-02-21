@@ -484,7 +484,6 @@ class MatStruct:
     Attribute '_all' and '_longest' does not conflict with other field names because symbols
     cannot start with underscore in MATLAB.
     """
-    __all_methods__ = ("as_dict", "keys", "items", "_all")
     
     def __init__(self, dict_=None):
         if (dict_ is None):
@@ -503,19 +502,19 @@ class MatStruct:
             raise KeyError(key)
     
     def __setattr__(self, key, value):
-        if (key in self.__all_methods__):
-            raise ValueError(f"Cannot set field {key} because it "\
-                              "conflicts with existing member function.")
         super().__setattr__(key, value)
         self._all.append(key)
     
     def __len__(self):
         return len(self._all)
     
+    def __iter__(self):
+        return zip(self._all, (getattr(self, k) for k in self._all))
+    
     def __repr__(self):
-        out = f"\nMatStruct with {len(self)} fields:\n"
+        out = f"MatStruct with {len(self)} fields:\n"
         longest = max([len(s) for s in self._all])
-        for k, v in self.items():
+        for k, v in self:
             out += " " * (longest - len(k) + 4)
             if (isinstance(v, BASIC_TYPES)):
                 description = v
@@ -530,16 +529,6 @@ class MatStruct:
             out += f"{k}: {description}\n"
             
         return out
-
-    def as_dict(self):
-        return {k: getattr(self, k) for k in self._all}
-
-    def keys(self):
-        return self._all
-    
-    def items(self):
-        for k in self._all:
-            yield k, getattr(self, k)
 
 
 def translate_obj(obj):
