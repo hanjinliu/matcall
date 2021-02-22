@@ -24,10 +24,11 @@ MATLAB_ARRAYS = (double, single, uint8, int8, uint16, int16,
                  uint32, int32, uint64, int64, logical)
 
 
-SPECIAL_METHODS = {"plus": "__add__",
-                   "minus": "__sub__",
-                   "times": "__mul__",
+SPECIAL_METHODS = {"plus": "__add__;__radd__",
+                   "minus": "__sub__;__rsub__",
+                   "times": "__mul__;__rmul__",
                    "rdivide": "__truediv__",
+                   "uminus": "__neg__",
                    "eq": "__eq__",
                    "gt": "__gt__",
                    "ge": "__ge__",
@@ -36,7 +37,7 @@ SPECIAL_METHODS = {"plus": "__add__",
                    "ne": "__ne__",
                    "power": "__pow__",
                    "char": "__str__",
-                   "double": "__float__",
+                   "double": "__float__;double",
                    "and": "__and__",
                    "or": "__or__",
                    "not": "__not__"

@@ -477,10 +477,13 @@ def translate_obj(obj):
         # define setter and getter
         for prop_name in ENGINE.properties(_real_name, nargout=1):
             setattr(newclass, prop_name, setget_property(prop_name))
-            
+        
+        # for special methods such as 'plus', they are converted to the corresponding
+        # Python one such as '__add__'.
         for method_name in ENGINE.methods(_real_name, nargout=1):
             method_name_in_python = SPECIAL_METHODS.get(method_name, method_name)
-            setattr(newclass, method_name_in_python, setget_methods(method_name))
+            for n in method_name_in_python.split(";"):
+                setattr(newclass, n, setget_methods(method_name))
         
     new = newclass(obj)
     
