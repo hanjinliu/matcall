@@ -1,36 +1,13 @@
-from matlab import (double, single, uint8, int8, uint16, int16, 
-                    uint32, int32, uint64, int64, logical)
 import matlab.engine as eng
 import numpy as np
 import os
 import glob
+from .const import *
+from .struct import MatStruct
 
-# MATLAB engine used after matcall is imported.
 ENGINE = eng.start_matlab()
 
 from matlab import object as MatObject
-
-# These types does not need conversion.
-BASIC_TYPES = (float, int, str, bool)
-
-# Conversion from numpy.dtype to type of MATLAB matrix.
-NtoM = {np.dtype("int8"): int8, 
-        np.dtype("int16"): int16,
-        np.dtype("int32"): int32, 
-        np.dtype("int64"): int64,
-        np.dtype("float16"): single,
-        np.dtype("float32"): single, 
-        np.dtype("float64"): double,
-        np.dtype("uint8"): uint8,
-        np.dtype("uint16"): uint16,
-        np.dtype("uint32"): uint32,
-        np.dtype("uint64"): uint64,
-        np.dtype("bool"): logical
-        }
-
-# Types of MATLAB matrix.
-MATLAB_ARRAYS = (double, single, uint8, int8, uint16, int16, 
-                 uint32, int32, uint64, int64, logical)
 
 
 class MatCaller:
@@ -112,7 +89,7 @@ class MatCaller:
     
     """
 
-    __all_methods__ = ["addpath", "console", "translate", "eval", "workspace"]
+    __all_methods__ = ["addpath", "console", "translate", "eval", "workspace", "added_path"]
     
     def __init__(self):
         if ("MATLABPATH" in os.environ.keys()):
@@ -170,9 +147,9 @@ class MatCaller:
                 break
             elif (_in.startswith("return ")):
                 val = _in[7:].strip(";")
-                ifexist = ENGINE.exist(val[1], nargout=1)
+                ifexist = ENGINE.exist(val, nargout=1)
                 if (ifexist):
-                    obj = ENGINE.workspace[val[1]]
+                    obj = ENGINE.workspace[val]
                     _out = to_pyobj(obj)
                     break
                 else:
@@ -242,7 +219,7 @@ class MatCaller:
             raise ValueError(f"Cannot overload MatCaller member function: {import_as}")
         
         if (import_as.startswith("__") and import_as.endswith("__")):
-            raise ValueError("Avoid names that start with '__'.")
+            raise ValueError("Avoid names that start and end with '__'.")
         
         import_as.startswith("@") or setattr(self, import_as, func)
         
@@ -265,8 +242,11 @@ class MatCaller:
         if (nargout < 0):
             if (";" in matlab_input):
                 nargout = 0
-            elif ("=" in matlab_input and "==" not in matlab_input):
-                nargout = 0
+            elif ("=" in matlab_input):
+                if ("==" in matlab_input):
+                    nargout = 1
+                else:
+                    nargout = 0
             elif ("@" in matlab_input):
                 nargout = 1
             elif ("(" in matlab_input):
@@ -465,72 +445,7 @@ def setget_methods(key):
     
     return property(getter, setter)
 
-
-class MatStruct:
-    """
-    Class for MATLAB-struct like object.
-    This class does not need connection to MATLAB.
-    e.g.)
-    >>> d = {"field1": 1, "field2": True, "arr": np.arange(5)}
-    >>> st = MatStruct(d)
-    >>> st
-    MatStruct with 3 fields:
-        field1: 1
-        field2: True
-           arr: np.ndarray (5,)
-    >>> st.arr
-    array([0, 1, 2, 3, 4])
     
-    Attribute '_all' and '_longest' does not conflict with other field names because symbols
-    cannot start with underscore in MATLAB.
-    """
-    
-    def __init__(self, dict_=None):
-        if (dict_ is None):
-            dict_ = dict()
-        super().__setattr__("_all", [])
-        for k, v in dict_.items():
-            setattr(self, k, v)
-    
-    def __getitem__(self, key):
-        """
-        To make MatStruct almost the same as dict.
-        """
-        if (key in self._all):
-            return getattr(self, key)
-        else:
-            raise KeyError(key)
-    
-    def __setattr__(self, key, value):
-        super().__setattr__(key, value)
-        self._all.append(key)
-    
-    def __len__(self):
-        return len(self._all)
-    
-    def __iter__(self):
-        return zip(self._all, (getattr(self, k) for k in self._all))
-    
-    def __repr__(self):
-        out = f"MatStruct with {len(self)} fields:\n"
-        longest = max([len(s) for s in self._all])
-        for k, v in self:
-            out += " " * (longest - len(k) + 4)
-            if (isinstance(v, BASIC_TYPES)):
-                description = v
-            elif (isinstance(v, np.ndarray)):
-                description = f"np.ndarray {v.shape}"
-            elif (isinstance(v, self.__class__)):
-                description = f"MatStruct object ({len(v)} fields)"
-            elif (isinstance(v, list)):
-                description = f"list (length {len(v)})"
-            else:
-                description = type(v)
-            out += f"{k}: {description}\n"
-            
-        return out
-
-
 def translate_obj(obj):
     """
     Dynamically define a class based on MATLAB class.
@@ -564,7 +479,8 @@ def translate_obj(obj):
             setattr(newclass, prop_name, setget_property(prop_name))
             
         for method_name in ENGINE.methods(_real_name, nargout=1):
-            setattr(newclass, method_name, setget_methods(method_name))
+            method_name_in_python = SPECIAL_METHODS.get(method_name, method_name)
+            setattr(newclass, method_name_in_python, setget_methods(method_name))
         
     new = newclass(obj)
     
@@ -590,7 +506,7 @@ def to_matobj(pyobj):
     """
     if (isinstance(pyobj, np.ndarray)):
         listobj = pyobj.tolist()
-        matobj = NtoM[pyobj.dtype](listobj)
+        matobj = NUMPY_TO_MLARRAY[pyobj.dtype](listobj)
     elif (isinstance(pyobj, (list, tuple))):
         matobj = [to_matobj(each) for each in pyobj]
     elif (isinstance(pyobj, BASIC_TYPES)):
