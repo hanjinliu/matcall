@@ -1,36 +1,13 @@
-from matlab import (double, single, uint8, int8, uint16, int16, 
-                    uint32, int32, uint64, int64, logical)
 import matlab.engine as eng
 import numpy as np
 import os
 import glob
+from .const import *
+from .struct import MatStruct
 
-# MATLAB engine used after matcall is imported.
 ENGINE = eng.start_matlab()
 
 from matlab import object as MatObject
-
-# These types does not need conversion.
-BASIC_TYPES = (float, int, str, bool)
-
-# Conversion from numpy.dtype to type of MATLAB matrix.
-NtoM = {np.dtype("int8"): int8, 
-        np.dtype("int16"): int16,
-        np.dtype("int32"): int32, 
-        np.dtype("int64"): int64,
-        np.dtype("float16"): single,
-        np.dtype("float32"): single, 
-        np.dtype("float64"): double,
-        np.dtype("uint8"): uint8,
-        np.dtype("uint16"): uint16,
-        np.dtype("uint32"): uint32,
-        np.dtype("uint64"): uint64,
-        np.dtype("bool"): logical
-        }
-
-# Types of MATLAB matrix.
-MATLAB_ARRAYS = (double, single, uint8, int8, uint16, int16, 
-                 uint32, int32, uint64, int64, logical)
 
 
 class MatCaller:
@@ -112,13 +89,16 @@ class MatCaller:
     
     """
 
-    __all_methods__ = ["addpath", "console", "translate", "eval", "workspace"]
+    __all_methods__ = ["addpath", "console", "translate", "eval", "workspace", 
+                       "added_path", "console_hist", "eng"]
     
     def __init__(self):
         if ("MATLABPATH" in os.environ.keys()):
             root = os.environ["MATLABPATH"]
             ENGINE.addpath(root)
         self.added_path = [root]
+        self.console_hist = []
+        self.eng = ENGINE
         
     def addpath(self, dirpath:str, child:bool=False):
         """
@@ -152,27 +132,63 @@ class MatCaller:
                     
         return None
     
-    def console(self):
+    def console(self, inputs=[]):
         """
         Start MATLAB console.
         Each line is sent to MatCaller.eval().
         Use 'return XX' to return the value of XX to Python.
         Use 'exit' to just exit from the console.
+        
+        Parameters
+        ----------
+        inputs : slice, list or tuple
+            Input lines that are run before user inputs. If it is slice, then it will
+            passed to console history.
         """
         import re
         html_tag = re.compile(r"<[^>]*?>")
+        if (isinstance(inputs, slice)):
+            inputs = self.console_hist[inputs]
+        elif (isinstance(inputs, (list, tuple))):
+            inputs = list(inputs)
+        else:
+            raise TypeError("'inputs' must be slice, list or tuple")
         
-        _in = ""
         _out = None
         while True:
-            _in = input("(MATLAB) In >>> ")
+            if (inputs):
+                _in = inputs.pop(0)
+                print("(MATLAB) In >>> " + "\n            >>> ".join(_in.split("\n")))
+            else:
+                stack = 0
+                _ins = []
+                while True:
+                    if (stack == 0):
+                        prefix = "(MATLAB) In >>> "
+                    else:
+                        prefix = "            >>> "
+                    _in0 = input(prefix).rstrip()
+                    if (_in0.startswith(("for ", "function ", "if ", "while ", "switch ", "try "))):
+                        stack += 1
+                    elif (_in0.lstrip() == "end" and stack > 0):
+                        stack -= 1
+                    
+                    _ins.append(_in0.rstrip())
+                    
+                    if (stack <= 0):
+                        break
+                    
+                _in = "\n".join(_ins)
+                
+            self.console_hist.append(_in)
+            
             if (_in == "return"):
                 break
             elif (_in.startswith("return ")):
                 val = _in[7:].strip(";")
-                ifexist = ENGINE.exist(val[1], nargout=1)
+                ifexist = ENGINE.exist(val, nargout=1)
                 if (ifexist):
-                    obj = ENGINE.workspace[val[1]]
+                    obj = ENGINE.workspace[val]
                     _out = to_pyobj(obj)
                     break
                 else:
@@ -181,6 +197,7 @@ class MatCaller:
                         break
                     except:
                         print(f"Error: Invalid return value.")
+                        self.console_hist.pop()
                     
             elif (_in == "exit"):
                 _out = None
@@ -193,6 +210,7 @@ class MatCaller:
                     if (err_msg.startswith("Error: ")):
                         err_msg = err_msg[7:]
                     print(f"{e.__class__.__name__}: {err_msg}")
+                    self.console_hist.pop()
                 else:
                     if (not _in.endswith(";")):
                         _disps = _disp.split("\n")
@@ -242,7 +260,7 @@ class MatCaller:
             raise ValueError(f"Cannot overload MatCaller member function: {import_as}")
         
         if (import_as.startswith("__") and import_as.endswith("__")):
-            raise ValueError("Avoid names that start with '__'.")
+            raise ValueError("Avoid names that start and end with '__'.")
         
         import_as.startswith("@") or setattr(self, import_as, func)
         
@@ -265,8 +283,11 @@ class MatCaller:
         if (nargout < 0):
             if (";" in matlab_input):
                 nargout = 0
-            elif ("=" in matlab_input and "==" not in matlab_input):
-                nargout = 0
+            elif ("=" in matlab_input):
+                if ("==" in matlab_input):
+                    nargout = 1
+                else:
+                    nargout = 0
             elif ("@" in matlab_input):
                 nargout = 1
             elif ("(" in matlab_input):
@@ -465,77 +486,7 @@ def setget_methods(key):
     
     return property(getter, setter)
 
-
-class MatStruct:
-    """
-    Class for MATLAB-struct like object.
-    This class does not need connection to MATLAB.
-    e.g.)
-    >>> d = {"field1": 1, "field2": True, "arr": np.arange(5)}
-    >>> st = MatStruct(d)
-    >>> st
-    MatStruct with 3 fields:
-        field1: 1
-        field2: True
-           arr: np.ndarray (5,)
-    >>> st.arr
-    array([0, 1, 2, 3, 4])
     
-    Attribute '_all' and '_longest' does not conflict with other field names because symbols
-    cannot start with underscore in MATLAB.
-    """
-    __all_methods__ = ("as_dict", "keys", "items")
-    
-    def __init__(self, dict_):
-        super().__setattr__("_all", [])
-        super().__setattr__("_n_field", 0)
-        for k, v in dict_.items():
-            setattr(self, k, v)
-            self._all.append(k)
-    
-    def __getitem__(self, key):
-        if (key in self._all):
-            return getattr(self, key)
-        else:
-            raise KeyError(key)
-    
-    def __setattr__(self, key, value):
-        if (key in self.__all_methods__):
-            raise ValueError(f"Cannot set field {key} because it "\
-                              "conflicts with existing member function.")
-        super().__setattr__(key, value)
-        super().__setattr__("_n_field", self._n_field + 1)
-    
-    def __repr__(self):
-        out = f"\nMatStruct with {self._n_field} fields:\n"
-        longest = max([len(s) for s in self._all])
-        for k, v in self.items():
-            out += " " * (longest - len(k) + 4)
-            if (isinstance(v, BASIC_TYPES)):
-                description = v
-            elif (isinstance(v, np.ndarray)):
-                description = f"np.ndarray {v.shape}"
-            elif (isinstance(v, self.__class__)):
-                description = f"MatStruct object ({v._n_field} fields)"
-            elif (isinstance(v, list)):
-                description = f"list (length {len(v)})"
-            else:
-                description = type(v)
-            out += f"{k}: {description}\n"
-            
-        return out
-
-    def as_dict(self):
-        return {k: getattr(self, k) for k in self._all}
-
-    def keys(self):
-        return self._all
-    
-    def items(self):
-        for k in self._all:
-            yield k, getattr(self, k)
-
-
 def translate_obj(obj):
     """
     Dynamically define a class based on MATLAB class.
@@ -567,9 +518,13 @@ def translate_obj(obj):
         # define setter and getter
         for prop_name in ENGINE.properties(_real_name, nargout=1):
             setattr(newclass, prop_name, setget_property(prop_name))
-            
+        
+        # for special methods such as 'plus', they are converted to the corresponding
+        # Python one such as '__add__'.
         for method_name in ENGINE.methods(_real_name, nargout=1):
-            setattr(newclass, method_name, setget_methods(method_name))
+            method_name_in_python = SPECIAL_METHODS.get(method_name, method_name)
+            for n in method_name_in_python.split(";"):
+                setattr(newclass, n, setget_methods(method_name))
         
     new = newclass(obj)
     
@@ -595,7 +550,7 @@ def to_matobj(pyobj):
     """
     if (isinstance(pyobj, np.ndarray)):
         listobj = pyobj.tolist()
-        matobj = NtoM[pyobj.dtype](listobj)
+        matobj = NUMPY_TO_MLARRAY[pyobj.dtype](listobj)
     elif (isinstance(pyobj, (list, tuple))):
         matobj = [to_matobj(each) for each in pyobj]
     elif (isinstance(pyobj, BASIC_TYPES)):

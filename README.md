@@ -1,12 +1,20 @@
 # matcall
-A Python file that makes it easy to run MATLAB functions and use MATLAB classes in Python codes.
+A Python file that makes it easy to run MATLAB functions and use MATLAB classes in Python codes. You can do almost anything in Python as in MATLAB, such as:
+
+- plot figures
+- run functions
+- basic operations such as `x + y` and `x * y`
+
+## Contents
+
 Following classes are contained:
+
 - `MatCaller`, which handles MATLAB.
 - `MatFunction`, which dynamically defines a function in Python from MATLAB function (including constructor).
 - `MatClass`, which dynamically defines a class in Python from MATLAB class.
 - `MatStruct`, which makes MATLAB's `struct` like object.
 
-<img src="images/example_2.png" width="600">
+<img src="images/example.png" width="600">
 
 ## Preparation
 
@@ -36,9 +44,9 @@ mat.addpath(r"C:\Users\...", child=True)
 |matrix (MxN)|`ndarray`|
 |`char`|`str`|
 |`cell`|`list`|
-|`struct`|`MatStruct` object|
-|`function_handle`|`MatFunction` object|
-|others|`MatClass` object|
+|`struct`|`MatStruct`|
+|`function_handle`|`MatFunction`|
+|others|`MatClass`|
 
 ## MATLAB to Python conversion table
 
@@ -51,8 +59,11 @@ mat.addpath(r"C:\Users\...", child=True)
 |`dict` or `MatStruct`|`struct`|
 |`ndarray`|matrix|
 |`MatFunction`|`function_handle`|
+|`MatClass`|corresponding object|
 
-## Basic Usage
+# Basic Usage
+
+## Use MATLAB Console
 
 You can run MATLAB using `console` and obtain one object as return value.
 
@@ -65,42 +76,31 @@ out = mat.console()
 # (MATLAB) In >>> return b
 ```
 ```python
-out
-
-#  --- Output ---
-# array([1.        , 1.41421356, 1.73205081, 2.        , 2.23606798])
+out # [Out]: array([1.        , 1.41421356, 1.73205081, 2.        , 2.23606798])
 ```
+
+## Use MATLAB Functions
 
 MATLAB functions can be translated to Python function by
 
 ```python
 mMax = mat.translate("max")
-mMax
-
-#  --- Output ---
-# MatFunction<max>
+mMax # [Out]: MatFunction<max>
 ```
 ```python
-mMax(np.array([3,6,4]))
-
-#  --- Output ---
-# [6, 2.0]
+mMax(np.array([3,6,4])) # [Out]: [6, 2.0]
 ```
 
-MATLAB lambda function is also accessible.
+MATLAB lambda function is also supported.
 ```python
 sq = mat.translate("@(t)t^2")
-sq
-
-#  --- Output ---
-# MatFunction<@(t)t^2>
+sq # [Out]: MatFunction<@(t)t^2>
 ```
 ```python
-sq(10)
-
-#  --- Output ---
-# 100
+sq(10) # [Out]: 100
 ```
+
+## Use MATLAB Classes, Properties and Methods
 
 Translation of MATLAB class constructor is also possible. Here constructor (not the class itself!) is returned and Python class will be dynamically defined with it. Same object
 is sent to MATLAB workspace only when it's needed.
@@ -108,13 +108,10 @@ is sent to MATLAB workspace only when it's needed.
 ```python
 mycls = mat.translation("MyClass")
 obj = mycls(x1, ..., xn)
-obj
-
-#  --- Output ---
-# MatClass<MyClass>
+obj # [Out]: MatClass<MyClass>
 ```
 
-Setting/getting method is also (mostly) defined so that you can deal with the properties in a very simple way.
+Setter and getter are also (mostly) defined so that you can deal with the properties in a very simple way.
 
 ```python
 mplot = mat.translate("plot")
@@ -122,12 +119,45 @@ pl = mplot(x, y)    # A figure window is openned here.
 pl.Color = "red"    # The line color is changed to red here.
 ```
 
-This is an example of how to manipulate the MATLAB figure from Python.
-
-![example_1](images/example_1.png)
-
 A struct object in MATLAB is translated to dict object in Python by default. However, it is a little bit troublesome to access the contents of dict, compared to MATLAB struct (at least you need to type double quotation every time). Thus, here in matcall a `MatStruct` object is returned instead.
 
 Following example shows how to solve ODE using MATLAB `ode45` function.
 
-<img src="images/example_3.png" width="600">
+```python
+xlim = np.array([0., 20.])
+v0 = np.array([2.,0.]).T
+vdp1 = mat.translate("vdp1")
+ode45 = mat.translate("ode45")
+result = ode45(vdp1, xlim, v0)
+result
+# [Out]:
+# MatStruct with 6 fields:
+#      solver: ode45
+#     extdata: MatStruct object (3 fields)
+#           x: np.ndarray (60,)
+#           y: np.ndarray (2, 60)
+#       stats: MatStruct object (3 fields)
+#       idata: MatStruct object (2 fields)
+```
+
+
+## Operators and Built-in Functions
+
+Special methods are converted correctly so that almost all the calculations overloaded in MATLAB are supported in Python. The table below shows the examples of overloads.
+
+|MATLAB|Python|What is supported|
+|:----:|:----:|:---------------:|
+|`plus`|`__add__`, `__radd__`| `x + y`|
+|`eq`|`__eq__`|`x == y`|
+|`char`|`__str__`|`str(x), print(x)`|
+
+Following code is an example of calculating derivative using symbolic variables.
+
+```python
+sym = mat.translate("sym")
+diff = mat.translate("diff")
+x = sym("x")
+A = sym("A")
+f = A * np.sin(x)**2
+print(diff(f)) # [Out]: 2*A*cos(x)*sin(x)
+```
