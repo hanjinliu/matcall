@@ -100,7 +100,7 @@ sq # [Out]: MatFunction<@(t)t^2>
 sq(10) # [Out]: 100
 ```
 
-## Using MATLAB Classes, Properties and Methods
+## Use MATLAB Classes, Properties and Methods
 
 Translation of MATLAB class constructor is also possible. Here constructor (not the class itself!) is returned and Python class will be dynamically defined with it. Same object
 is sent to MATLAB workspace only when it's needed.
