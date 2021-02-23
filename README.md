@@ -3,7 +3,7 @@ A Python file that makes it easy to run MATLAB functions and use MATLAB classes 
 
 - plot figures
 - run functions
-- basic operations such as '+' and '*'
+- basic operations such as `x + y` and `x * y`
 
 ## Contents
 
@@ -76,10 +76,7 @@ out = mat.console()
 # (MATLAB) In >>> return b
 ```
 ```python
-out
-
-#  --- Output ---
-# array([1.        , 1.41421356, 1.73205081, 2.        , 2.23606798])
+out # [Out]: array([1.        , 1.41421356, 1.73205081, 2.        , 2.23606798])
 ```
 
 ## Use MATLAB Functions
