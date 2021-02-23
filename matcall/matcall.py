@@ -132,20 +132,56 @@ class MatCaller:
                     
         return None
     
-    def console(self):
+    def console(self, inputs=[]):
         """
         Start MATLAB console.
         Each line is sent to MatCaller.eval().
         Use 'return XX' to return the value of XX to Python.
         Use 'exit' to just exit from the console.
+        
+        Parameters
+        ----------
+        inputs : slice, list or tuple
+            Input lines that are run before user inputs. If it is slice, then it will
+            passed to console history.
         """
         import re
         html_tag = re.compile(r"<[^>]*?>")
+        if (isinstance(inputs, slice)):
+            inputs = self.console_hist[inputs]
+        elif (isinstance(inputs, (list, tuple))):
+            inputs = list(inputs)
+        else:
+            raise TypeError("'inputs' must be slice, list or tuple")
         
         _out = None
         while True:
-            _in = input("(MATLAB) In >>> ")
+            if (inputs):
+                _in = inputs.pop(0)
+                print("(MATLAB) In >>> " + "\n            >>> ".join(_in.split("\n")))
+            else:
+                stack = 0
+                _ins = []
+                while True:
+                    if (stack == 0):
+                        prefix = "(MATLAB) In >>> "
+                    else:
+                        prefix = "            >>> "
+                    _in0 = input(prefix).rstrip()
+                    if (_in0.startswith(("for ", "function ", "if ", "while ", "switch ", "try "))):
+                        stack += 1
+                    elif (_in0.lstrip() == "end" and stack > 0):
+                        stack -= 1
+                    
+                    _ins.append(_in0.rstrip())
+                    
+                    if (stack <= 0):
+                        break
+                    
+                _in = "\n".join(_ins)
+                
             self.console_hist.append(_in)
+            
             if (_in == "return"):
                 break
             elif (_in.startswith("return ")):
