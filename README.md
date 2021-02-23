@@ -3,7 +3,7 @@ A Python file that makes it easy to run MATLAB functions and use MATLAB classes 
 
 - plot figures
 - run functions
-- basic operations such as '+' and '*'
+- basic operations such as `x + y` and `x * y`
 
 ## Contents
 
