@@ -14,7 +14,7 @@ Following classes are contained:
 - `MatClass`, which dynamically defines a class in Python from MATLAB class.
 - `MatStruct`, which makes MATLAB's `struct` like object.
 
-<img src="images/example_2.png" width="600">
+<img src="images/example.png" width="600">
 
 ## Preparation
 
@@ -44,9 +44,9 @@ mat.addpath(r"C:\Users\...", child=True)
 |matrix (MxN)|`ndarray`|
 |`char`|`str`|
 |`cell`|`list`|
-|`struct`|`MatStruct` object|
-|`function_handle`|`MatFunction` object|
-|others|`MatClass` object|
+|`struct`|`MatStruct`|
+|`function_handle`|`MatFunction`|
+|others|`MatClass`|
 
 ## MATLAB to Python conversion table
 
@@ -59,6 +59,7 @@ mat.addpath(r"C:\Users\...", child=True)
 |`dict` or `MatStruct`|`struct`|
 |`ndarray`|matrix|
 |`MatFunction`|`function_handle`|
+|`MatClass`|corresponding object|
 
 # Basic Usage
 

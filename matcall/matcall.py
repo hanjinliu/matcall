@@ -89,13 +89,16 @@ class MatCaller:
     
     """
 
-    __all_methods__ = ["addpath", "console", "translate", "eval", "workspace", "added_path"]
+    __all_methods__ = ["addpath", "console", "translate", "eval", "workspace", 
+                       "added_path", "console_hist", "eng"]
     
     def __init__(self):
         if ("MATLABPATH" in os.environ.keys()):
             root = os.environ["MATLABPATH"]
             ENGINE.addpath(root)
         self.added_path = [root]
+        self.console_hist = []
+        self.eng = ENGINE
         
     def addpath(self, dirpath:str, child:bool=False):
         """
@@ -139,10 +142,10 @@ class MatCaller:
         import re
         html_tag = re.compile(r"<[^>]*?>")
         
-        _in = ""
         _out = None
         while True:
             _in = input("(MATLAB) In >>> ")
+            self.console_hist.append(_in)
             if (_in == "return"):
                 break
             elif (_in.startswith("return ")):
@@ -158,6 +161,7 @@ class MatCaller:
                         break
                     except:
                         print(f"Error: Invalid return value.")
+                        self.console_hist.pop()
                     
             elif (_in == "exit"):
                 _out = None
@@ -170,6 +174,7 @@ class MatCaller:
                     if (err_msg.startswith("Error: ")):
                         err_msg = err_msg[7:]
                     print(f"{e.__class__.__name__}: {err_msg}")
+                    self.console_hist.pop()
                 else:
                     if (not _in.endswith(";")):
                         _disps = _disp.split("\n")
