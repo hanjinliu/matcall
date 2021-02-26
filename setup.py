@@ -6,7 +6,7 @@ setup(name="matcall",
       author="Hanjin Liu",
       author_email="liuhanjin-sc@g.ecc.u-tokyo.ac.jp",
       license="GPLv2",
-      packages=["matcall"],
+      packages=["src"],
       install_requires=[
             "numpy",
       ],
