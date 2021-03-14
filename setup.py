@@ -1,7 +1,13 @@
 from setuptools import setup
 
+with open("matcall/__init__.py", encoding="utf-8") as f:
+    for line in f:
+        if (line.startswith("__version__")):
+            VERSION = line.strip().split()[-1][1:-1]
+            break
+      
 setup(name="matcall",
-      version="1.3.0",
+      version=VERSION,
       description="Use MATLAB functions and classes in Python.",
       author="Hanjin Liu",
       author_email="liuhanjin-sc@g.ecc.u-tokyo.ac.jp",
