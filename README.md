@@ -14,22 +14,6 @@ Following classes are contained:
 - `MatClass`, which dynamically defines a class in Python from MATLAB class.
 - `MatStruct`, which makes MATLAB's `struct` like object.
 
-```python
-%%matlab
-data.time = 1:100;
-data.signal = sin(data.time/5.2);
-data.name = "wave";
-data
-```
-```
-data = 
-
-  struct with fields:
-
-      time: [1x100 double]
-    signal: [1x100 double]
-      name: "wave"
-```
 ## Preparation
 
 First launch MATLAB in Python and make an instance. **Make sure you have downloaded MATLAB engine API for Python correctly**.
@@ -83,27 +67,39 @@ You can run MATLAB using `console` and obtain one object as return value.
 
 ```python
 out = mat.console()
-
-#  --- Input ---
-# (MATLAB) In >>> a = 1:5;
-# (MATLAB) In >>> b = sqrt(a);
-# (MATLAB) In >>> return b
+```
+```
+    --- Input ---
+(MATLAB) In >>> a = 1:5;
+(MATLAB) In >>> b = sqrt(a);
+(MATLAB) In >>> return b
 ```
 ```python
-out # [Out]: array([1.        , 1.41421356, 1.73205081, 2.        , 2.23606798])
+out
 ```
-
+```
+[Out]
+    array([1.        , 1.41421356, 1.73205081, 2.        , 2.23606798])
+```
 IPython magic is also supported.
 
 ```python
 %%matlab
-a = 1:5
-b = sqrt(a)
+data.time = 1:100;
+data.signal = sin(data.time/5.2);
+data.name = "wave";
+data
 ```
 ```
-b =
+[Out]
 
-    1.0000    1.4142    1.7321    2.0000    2.2361
+    data = 
+
+    struct with fields:
+
+        time: [1x100 double]
+        signal: [1x100 double]
+        name: "wave"
 ```
 
 
@@ -113,19 +109,34 @@ MATLAB functions can be translated to Python function by
 
 ```python
 mMax = mat.translate("max")
-mMax # [Out]: MatFunction<max>
+mMax
+```
+```
+[Out]
+    MatFunction<max>
 ```
 ```python
-mMax(np.array([3,6,4])) # [Out]: [6, 2.0]
+mMax(np.array([3,6,4]))
 ```
-
+```
+[Out]
+    [6, 2.0]
+```
 MATLAB lambda function is also supported.
 ```python
 sq = mat.translate("@(t)t^2")
-sq # [Out]: MatFunction<@(t)t^2>
+sq 
+```
+```
+[Out]
+    MatFunction<@(t)t^2>
 ```
 ```python
-sq(10) # [Out]: 100
+sq(10)
+```
+```
+[Out]
+    100
 ```
 
 ## Use MATLAB Classes, Properties and Methods
@@ -136,7 +147,11 @@ is sent to MATLAB workspace only when it's needed.
 ```python
 mycls = mat.translation("MyClass")
 obj = mycls(x1, ..., xn)
-obj # [Out]: MatClass<MyClass>
+obj
+```
+```
+[Out]
+    MatClass<MyClass>
 ```
 
 Setter and getter are also (mostly) defined so that you can deal with the properties in a very simple way.
@@ -158,14 +173,16 @@ vdp1 = mat.translate("vdp1")
 ode45 = mat.translate("ode45")
 result = ode45(vdp1, xlim, v0)
 result
-# [Out]:
-# MatStruct with 6 fields:
-#      solver: ode45
-#     extdata: MatStruct object (3 fields)
-#           x: np.ndarray (60,)
-#           y: np.ndarray (2, 60)
-#       stats: MatStruct object (3 fields)
-#       idata: MatStruct object (2 fields)
+```
+```
+[Out]
+    MatStruct with 6 fields:
+        solver: ode45
+        extdata: MatStruct object (3 fields)
+            x: np.ndarray (60,)
+            y: np.ndarray (2, 60)
+        stats: MatStruct object (3 fields)
+        idata: MatStruct object (2 fields)
 ```
 
 
@@ -187,5 +204,9 @@ diff = mat.translate("diff")
 x = sym("x")
 A = sym("A")
 f = A * np.sin(x)**2
-print(diff(f)) # [Out]: 2*A*cos(x)*sin(x)
+print(diff(f))
+```
+```
+[Out]
+    2*A*cos(x)*sin(x)
 ```
