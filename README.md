@@ -14,8 +14,22 @@ Following classes are contained:
 - `MatClass`, which dynamically defines a class in Python from MATLAB class.
 - `MatStruct`, which makes MATLAB's `struct` like object.
 
-<img src="images/example.png" width="600">
+```python
+%%matlab
+data.time = 1:100;
+data.signal = sin(data.time/5.2);
+data.name = "wave";
+data
+```
+```
+data = 
 
+  struct with fields:
+
+      time: [1x100 double]
+    signal: [1x100 double]
+      name: "wave"
+```
 ## Preparation
 
 First launch MATLAB in Python and make an instance. **Make sure you have downloaded MATLAB engine API for Python correctly**.
