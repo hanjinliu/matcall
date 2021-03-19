@@ -607,3 +607,29 @@ def to_pyobj(matobj):
         _out_py = matobj
 
     return _out_py
+
+
+# IPython magic
+try:
+    from IPython.core.magic import register_cell_magic
+    @register_cell_magic
+    def matlab(line, cell):
+        import re
+        html_tag = re.compile(r"<[^>]*?>")
+        try:
+            _disp = ENGINE.evalc(cell, nargout=1)
+        except Exception as e:
+            err_msg = str(e)
+            if (err_msg.startswith("Error: ")):
+                err_msg = err_msg[7:]
+            print(f"{e.__class__.__name__}: {err_msg}")
+        else:
+            if (not cell.endswith(";")):
+                _disps = _disp.split("\n")
+                for i, line in enumerate(_disps):
+                    if('<a href="' in line and "</a>" in line):
+                        _disps[i] = html_tag.sub("", line)
+                print("\n".join(_disps))
+                
+except ImportError:
+    pass

@@ -79,6 +79,20 @@ out = mat.console()
 out # [Out]: array([1.        , 1.41421356, 1.73205081, 2.        , 2.23606798])
 ```
 
+IPython magic is also supported.
+
+```python
+%%matlab
+a = 1:5
+b = sqrt(a)
+```
+```
+b =
+
+    1.0000    1.4142    1.7321    2.0000    2.2361
+```
+
+
 ## Use MATLAB Functions
 
 MATLAB functions can be translated to Python function by
