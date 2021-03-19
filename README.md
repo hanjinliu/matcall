@@ -7,12 +7,13 @@ A Python file that makes it easy to run MATLAB functions and use MATLAB classes 
 
 ## Contents
 
-Following classes are contained:
+Following included:
 
 - `MatCaller`, which handles MATLAB.
 - `MatFunction`, which dynamically defines a function in Python from MATLAB function (including constructor).
 - `MatClass`, which dynamically defines a class in Python from MATLAB class.
 - `MatStruct`, which makes MATLAB's `struct` like object.
+- `%%matlab` magic command.
 
 ## Preparation
 
