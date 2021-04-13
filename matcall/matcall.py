@@ -93,7 +93,7 @@ class MatCaller:
                        "added_path", "console_hist", "eng"]
     
     def __init__(self):
-        if ("MATLABPATH" in os.environ.keys()):
+        if "MATLABPATH" in os.environ.keys():
             root = os.environ["MATLABPATH"]
             ENGINE.addpath(root)
         self.added_path = [root]
@@ -113,7 +113,7 @@ class MatCaller:
             By default False.
 
         """
-        if (not os.path.exists(dirpath)):
+        if not os.path.exists(dirpath):
             raise FileNotFoundError(f"Path '{dirpath}' does not exist.")
         
         if child:
@@ -147,16 +147,16 @@ class MatCaller:
         """
         import re
         html_tag = re.compile(r"<[^>]*?>")
-        if (isinstance(inputs, slice)):
+        if isinstance(inputs, slice):
             inputs = self.console_hist[inputs]
-        elif (isinstance(inputs, (list, tuple))):
+        elif isinstance(inputs, (list, tuple)):
             inputs = list(inputs)
         else:
             raise TypeError("'inputs' must be slice, list or tuple")
         
         _out = None
         while True:
-            if (inputs):
+            if inputs:
                 _in = inputs.pop(0)
                 print("(MATLAB) In >>> " + "\n            >>> ".join(_in.split("\n")))
             else:
@@ -168,26 +168,26 @@ class MatCaller:
                     else:
                         prefix = "            >>> "
                     _in0 = input(prefix).rstrip()
-                    if (_in0.startswith(("for ", "function ", "if ", "while ", "switch ", "try "))):
+                    if _in0.startswith(("for ", "function ", "if ", "while ", "switch ", "try ")):
                         stack += 1
-                    elif (_in0.lstrip() == "end" and stack > 0):
+                    elif _in0.lstrip() == "end" and stack > 0:
                         stack -= 1
                     
                     _ins.append(_in0.rstrip())
                     
-                    if (stack <= 0):
+                    if stack <= 0:
                         break
                     
                 _in = "\n".join(_ins)
                 
             self.console_hist.append(_in)
             
-            if (_in == "return"):
+            if _in == "return":
                 break
-            elif (_in.startswith("return ")):
+            elif _in.startswith("return "):
                 val = _in[7:].strip(";")
                 ifexist = ENGINE.exist(val, nargout=1)
-                if (ifexist):
+                if ifexist:
                     obj = ENGINE.workspace[val]
                     _out = to_pyobj(obj)
                     break
@@ -199,7 +199,7 @@ class MatCaller:
                         print(f"Error: Invalid return value.")
                         self.console_hist.pop()
                     
-            elif (_in == "exit"):
+            elif _in == "exit":
                 _out = None
                 break
             else:
@@ -212,7 +212,7 @@ class MatCaller:
                     print(f"{e.__class__.__name__}: {err_msg}")
                     self.console_hist.pop()
                 else:
-                    if (not _in.endswith(";")):
+                    if not _in.endswith(";"):
                         _disps = _disp.split("\n")
                         for i, line in enumerate(_disps):
                             if('<a href="' in line and "</a>" in line):
@@ -246,20 +246,20 @@ class MatCaller:
         -------
         MatFunction object
         """
-        if (os.path.exists(funcname) and funcname.endswith(".m")):
+        if os.path.exists(funcname) and funcname.endswith(".m"):
             dirpath = os.path.dirname(funcname)
             funcname = os.path.splitext(os.path.basename(funcname))[0]
             self.addpath(dirpath, child=child)
         
         func = MatFunction(funcname, nargout=nargout)
         
-        if (import_as is None):
+        if import_as is None:
             import_as = funcname
             
-        if (import_as in self.__all_methods__):
+        if import_as in self.__all_methods__:
             raise ValueError(f"Cannot overload MatCaller member function: {import_as}")
         
-        if (import_as.startswith("__") and import_as.endswith("__")):
+        if import_as.startswith("__") and import_as.endswith("__"):
             raise ValueError("Avoid names that start and end with '__'.")
         
         import_as.startswith("@") or setattr(self, import_as, func)
@@ -277,25 +277,25 @@ class MatCaller:
         >>> main_instance.eval("arr = [0, 1, 2, 3, 4]")
         >>> main_instance.eval("sqrt(arr)")
         """
-        if (matlab_input == ""):
+        if matlab_input == "":
             return None
         
-        if (nargout < 0):
-            if (";" in matlab_input):
+        if nargout < 0:
+            if ";" in matlab_input:
                 nargout = 0
-            elif ("=" in matlab_input):
-                if ("==" in matlab_input):
+            elif "=" in matlab_input:
+                if "==" in matlab_input:
                     nargout = 1
                 else:
                     nargout = 0
-            elif ("@" in matlab_input):
+            elif "@" in matlab_input:
                 nargout = 1
-            elif ("(" in matlab_input):
+            elif "(" in matlab_input:
                 funcname, _ = matlab_input.split("(", 1)
                 nargout = int(ENGINE.nargout(funcname, nargout=1))
-                if (nargout < 0):
+                if nargout < 0:
                     nargout = 1
-            elif (" " in matlab_input):
+            elif " " in matlab_input:
                 nargout = 0
             else:
                 nargout = 1
@@ -344,8 +344,8 @@ class MatFunction:
             NameError.
         """
         # determine fhandle and name
-        if (isinstance(name, str)):
-            if (name.startswith("@")):
+        if isinstance(name, str):
+            if name.startswith("@"):
                 # lambda function
                 self.fhandle = ENGINE.eval(name, nargout=1) 
             else:
@@ -355,7 +355,7 @@ class MatFunction:
                 self.fhandle = ENGINE.eval("@" + name, nargout=1)
             self.name = name
             
-        elif (isinstance(name, MatObject)):
+        elif isinstance(name, MatObject):
             # function handle
             self.fhandle = name
             self.name = ENGINE.func2str(name)
@@ -364,12 +364,12 @@ class MatFunction:
             raise TypeError("'name' must be str or matlab.object of function_handle")
         
         # determine nargout
-        if (nargout < 0):
-            if (self.name.startswith("@")):
+        if nargout < 0:
+            if self.name.startswith("@"):
                 nargout = 1
             else:
                 nargout = int(ENGINE.nargout(name, nargout=1))
-                if (nargout < 0):
+                if nargout < 0:
                     nargout = 1
                     
         self.nargout = nargout
@@ -428,7 +428,7 @@ class MatClass:
         str
             The symbol used in MATLAB.
         """
-        if (hasattr(self, "_objname")):
+        if hasattr(self, "_objname"):
             return self._objname
         clsname = self.__class__.__name__
         objname = f"{clsname}_No{self.__class__._record}"
@@ -452,15 +452,15 @@ def setget_property(key):
     
     def setter(self, value):
         objname = self._send()
-        if (hasattr(self, "set")):
+        if hasattr(self, "set"):
             self.set(key, value)
-        elif (isinstance(value, bool)):
+        elif isinstance(value, bool):
             ENGINE.eval(f"{objname}.{key}={str(value).lower()};", nargout=0)   
-        elif (isinstance(value, (int, float))):
+        elif isinstance(value, (int, float)):
             ENGINE.eval(f"{objname}.{key}={value};", nargout=0)
-        elif (isinstance(value, str)):
+        elif isinstance(value, str):
             ENGINE.eval(f"{objname}.{key}='{value}';", nargout=0)
-        elif (isinstance(value, np.ndarray) and value.ndim == 1):
+        elif isinstance(value, np.ndarray) and value.ndim == 1:
             ENGINE.eval(f"{objname}.{key}={list(value)};", nargout=0)
         else:
             raise AttributeError("Complicated property setting is not "\
@@ -502,12 +502,12 @@ def translate_obj(obj):
     """        
     _real_name = ENGINE.feval("class", obj, nargout=1)
     
-    if (_real_name == "function_handle"):
+    if _real_name == "function_handle":
         return MatFunction(obj)
     
     newclass_name = "_".join(_real_name.split("."))
     
-    if (newclass_name in MatClass._classes):
+    if newclass_name in MatClass._classes:
         newclass = MatClass._classes[newclass_name]
     else:
         # Prepare class
@@ -548,20 +548,20 @@ def to_matobj(pyobj):
      ndarray  -> matrix
      
     """
-    if (isinstance(pyobj, np.ndarray)):
+    if isinstance(pyobj, np.ndarray):
         listobj = pyobj.tolist()
         matobj = NUMPY_TO_MLARRAY[pyobj.dtype](listobj)
-    elif (isinstance(pyobj, (list, tuple))):
+    elif isinstance(pyobj, (list, tuple)):
         matobj = [to_matobj(each) for each in pyobj]
-    elif (isinstance(pyobj, BASIC_TYPES)):
+    elif isinstance(pyobj, BASIC_TYPES):
         matobj = pyobj
-    elif (isinstance(pyobj, (dict, MatStruct))):
+    elif isinstance(pyobj, (dict, MatStruct)):
         matobj = {k:to_matobj(v) for k, v in pyobj.items()}
-    elif (isinstance(pyobj, MatFunction)):
+    elif isinstance(pyobj, MatFunction):
         matobj = pyobj.fhandle
-    elif (isinstance(pyobj, MatClass)):
+    elif isinstance(pyobj, MatClass):
         matobj = pyobj._obj
-    elif (isinstance(pyobj, MatObject)):
+    elif isinstance(pyobj, MatObject):
         matobj = pyobj
     else:
         raise TypeError(f"Cannot convert {type(pyobj)} to MATLAB object.")
@@ -585,23 +585,23 @@ def to_pyobj(matobj):
        others    -> MatClass object (if possible)
     """
     
-    if (matobj is None):
+    if matobj is None:
         _out_py = matobj
-    elif (isinstance(matobj, BASIC_TYPES)):
+    elif isinstance(matobj, BASIC_TYPES):
         _out_py = matobj
-    elif (isinstance(matobj, (list, tuple))):
+    elif isinstance(matobj, (list, tuple)):
         _out_py = [to_pyobj(each) for each in matobj]
-    elif (isinstance(matobj, dict)):
+    elif isinstance(matobj, dict):
         _out_py = MatStruct({k: to_pyobj(v) for k, v in matobj.items()})
-    elif (matobj.size == (1, 1) and isinstance(matobj[0][0], BASIC_TYPES)):
+    elif matobj.size == (1, 1) and isinstance(matobj[0][0], BASIC_TYPES):
         _out_py = matobj[0][0]
-    elif (isinstance(matobj, MATLAB_ARRAYS)):
+    elif isinstance(matobj, MATLAB_ARRAYS):
         _out_py = np.array(matobj)
         if (_out_py.shape[0] == 1):
             _out_py = _out_py[0]
         elif (_out_py.ndim == 2 and _out_py.shape[1] == 1):
             _out_py = _out_py[:, 0]
-    elif (isinstance(matobj, MatObject)):
+    elif isinstance(matobj, MatObject):
         _out_py = translate_obj(matobj)
     else:
         _out_py = matobj
@@ -620,14 +620,14 @@ try:
             _disp = ENGINE.evalc(cell, nargout=1)
         except Exception as e:
             err_msg = str(e)
-            if (err_msg.startswith("Error: ")):
+            if err_msg.startswith("Error: "):
                 err_msg = err_msg[7:]
             print(f"{e.__class__.__name__}: {err_msg}")
         else:
-            if (not cell.endswith(";")):
+            if not cell.endswith(";"):
                 _disps = _disp.split("\n")
                 for i, line in enumerate(_disps):
-                    if('<a href="' in line and "</a>" in line):
+                    if '<a href="' in line and "</a>" in line:
                         _disps[i] = html_tag.sub("", line)
                 print("\n".join(_disps))
                 
