@@ -1,9 +1,8 @@
 # matcall
-A Python file that makes it easy to run MATLAB functions and use MATLAB classes in Python codes. You can do almost anything in Python as in MATLAB, such as:
 
-- plot figures
-- run functions
-- basic operations such as `x + y` and `x * y`
+![](img1.png)
+
+"MATLAB engine API for Python" is a little bit troublesome to handle. This Python module makes it easy to run MATLAB functions and use MATLAB classes in Python codes. You can do almost anything in Python as in MATLAB.
 
 ## Contents
 
@@ -17,7 +16,7 @@ Following included:
 
 ## Preparation
 
-First launch MATLAB in Python and make an instance. **Make sure you have downloaded MATLAB engine API for Python correctly**.
+First launch MATLAB in Python and make an instance by `mat = MatCaller()`. **Make sure you have downloaded MATLAB engine API for Python correctly**.
 
 ```python
 from matcall import MatCaller
