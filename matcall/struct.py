@@ -21,8 +21,7 @@ class MatStruct:
     """
     
     def __init__(self, dict_=None):
-        if (dict_ is None):
-            dict_ = dict()
+        dict_ = dict_ or dict()
         super().__setattr__("_all", [])
         for k, v in dict_.items():
             setattr(self, k, v)
@@ -31,7 +30,7 @@ class MatStruct:
         """
         To make MatStruct almost the same as dict.
         """
-        if (key in self._all):
+        if key in self._all:
             return getattr(self, key)
         else:
             raise KeyError(key)
@@ -51,13 +50,13 @@ class MatStruct:
         longest = max([len(s) for s in self._all])
         for k, v in self:
             out += " " * (longest - len(k) + 4)
-            if (isinstance(v, BASIC_TYPES)):
+            if isinstance(v, BASIC_TYPES):
                 description = v
-            elif (isinstance(v, np.ndarray)):
+            elif isinstance(v, np.ndarray):
                 description = f"np.ndarray {v.shape}"
-            elif (isinstance(v, self.__class__)):
+            elif isinstance(v, self.__class__):
                 description = f"MatStruct object ({len(v)} fields)"
-            elif (isinstance(v, list)):
+            elif isinstance(v, list):
                 description = f"list (length {len(v)})"
             else:
                 description = type(v)

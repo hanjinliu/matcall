@@ -1,23 +1,24 @@
 from matlab import (double, single, uint8, int8, uint16, int16, 
                     uint32, int32, uint64, int64, logical)
 import numpy as np
+
 # These types does not need conversion.
 BASIC_TYPES = (float, int, str, bool)
 
 # Conversion from numpy.dtype to type of MATLAB matrix.
-NUMPY_TO_MLARRAY = {np.dtype("int8"): int8, 
-                    np.dtype("int16"): int16,
-                    np.dtype("int32"): int32, 
-                    np.dtype("int64"): int64,
-                    np.dtype("float16"): single,
-                    np.dtype("float32"): single, 
-                    np.dtype("float64"): double,
-                    np.dtype("uint8"): uint8,
-                    np.dtype("uint16"): uint16,
-                    np.dtype("uint32"): uint32,
-                    np.dtype("uint64"): uint64,
-                    np.dtype("bool"): logical
-                    }
+DTYPE_MAP = {np.dtype("int8"): int8, 
+             np.dtype("int16"): int16,
+             np.dtype("int32"): int32, 
+             np.dtype("int64"): int64,
+             np.dtype("float16"): single,
+             np.dtype("float32"): single, 
+             np.dtype("float64"): double,
+             np.dtype("uint8"): uint8,
+             np.dtype("uint16"): uint16,
+             np.dtype("uint32"): uint32,
+             np.dtype("uint64"): uint64,
+             np.dtype("bool"): logical
+             }
 
 # Types of MATLAB matrix.
 MATLAB_ARRAYS = (double, single, uint8, int8, uint16, int16, 
