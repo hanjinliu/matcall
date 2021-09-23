@@ -38,13 +38,14 @@ mat.addpath("path/to/the/file", recursive=True)
 |:----:|:----:|
 |`logical`|`bool`|
 |matrix (1x1)|`int` or `float`|
-|matrix (1xN)|1-dim `ndarray`|
-|matrix (Mx1)|1-dim `ndarray`|
+|matrix (1xN)|1D `ndarray`|
+|matrix (Mx1)|1D `ndarray`|
 |matrix (MxN)|`ndarray`|
 |`char`|`str`|
 |`cell`|`list`|
 |`struct`|`MatStruct`|
 |`function_handle`|`MatFunction`|
+|`table`|`DataFrame`|
 |others|`MatClass`|
 
 ## Python to MATLAB conversion table
@@ -53,11 +54,12 @@ mat.addpath("path/to/the/file", recursive=True)
 |:----:|:----:|
 |`bool`|`logical`|
 |`int` or `float`|matrix (1x1)|
-|`str`|`char`|
+|`str` or `Path`|`char`|
 |`list` or `tuple`|`cell`|
 |`dict` or `MatStruct`|`struct`|
 |`ndarray`|matrix|
 |`MatFunction`|`function_handle`|
+|`DataFrame`|`table`|
 |`MatClass`|corresponding object|
 
 # Basic Usage

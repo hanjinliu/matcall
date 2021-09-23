@@ -2,10 +2,12 @@ from __future__ import annotations
 import matlab.engine as eng
 from matlab.engine import MatlabExecutionError
 import numpy as np
+import pandas as pd
 import os
 import re
 import glob
 import tempfile
+from pathlib import Path
 from .const import BASIC_TYPES, DTYPE_MAP, MATLAB_ARRAYS, SPECIAL_METHODS
 from .struct import MatStruct
 
@@ -146,9 +148,7 @@ class MatCaller:
         return out
     
     def __setattr__(self, key:str, value):
-        if not isinstance(value, MatFunction):
-            ENGINE.workspace[key] = to_matobj(value)
-        super().__setattr__(key, value)
+        ENGINE.workspace[key] = to_matobj(value)
         
 
 class MatFunction:
@@ -334,6 +334,14 @@ def translate_obj(obj):
     
     if _real_name == "function_handle":
         return MatFunction(obj)
+    elif _real_name == "table":
+        _dict: dict = ENGINE.table2struct(obj, "ToScalar", True)
+        _dict = {k: to_pyobj(v) for k, v in _dict.items()}
+        try:
+            import pandas as pd
+            return pd.DataFrame(_dict)
+        except ImportError:
+            return _dict
     
     newclass_name = "_".join(_real_name.split("."))
     
@@ -370,12 +378,13 @@ def to_matobj(pyobj):
        bool   -> logical
        int    -> matrix (1x1)
       float   -> matrix (1x1)
-       str    ->  char
+    str, Path ->  char
        list   ->  cell
       tuple   ->  cell
        dict   -> struct (make sure all the keys are string)
     MatStruct -> struct
      ndarray  -> matrix
+    DataFrame ->  table
      
     """
     if isinstance(pyobj, np.ndarray):
@@ -386,11 +395,17 @@ def to_matobj(pyobj):
     elif isinstance(pyobj, BASIC_TYPES):
         matobj = pyobj
     elif isinstance(pyobj, (dict, MatStruct)):
-        matobj = {k:to_matobj(v) for k, v in pyobj.items()}
+        matobj = {k: to_matobj(v) for k, v in pyobj.items()}
     elif isinstance(pyobj, MatFunction):
         matobj = pyobj.fhandle
     elif isinstance(pyobj, MatClass):
         matobj = pyobj._obj
+    elif isinstance(pyobj, pd.DataFrame):
+        _dict = {k: DTYPE_MAP[v.dtype](np.asarray(v).reshape(-1, 1).tolist()) 
+                 for k, v in pyobj.to_dict("series").items()}
+        matobj = ENGINE.struct2table(_dict)
+    elif isinstance(pyobj, Path):
+        matobj = str(pyobj)
     elif isinstance(pyobj, MatObject):
         matobj = pyobj
     else:
@@ -412,6 +427,7 @@ def to_pyobj(matobj):
         char     ->  str
         cell     ->  list (1xN or Nx1)
        struct    ->  MatStruct object
+       table     -> DataFrame
        others    -> MatClass object (if possible)
     """
     # TODO: table <-> data frame?
@@ -427,9 +443,9 @@ def to_pyobj(matobj):
         _out_py = matobj[0][0]
     elif isinstance(matobj, MATLAB_ARRAYS):
         _out_py = np.array(matobj)
-        if (_out_py.shape[0] == 1):
+        if _out_py.shape[0] == 1:
             _out_py = _out_py[0]
-        elif (_out_py.ndim == 2 and _out_py.shape[1] == 1):
+        elif _out_py.ndim == 2 and _out_py.shape[1] == 1:
             _out_py = _out_py[:, 0]
     elif isinstance(matobj, MatObject):
         _out_py = translate_obj(matobj)
