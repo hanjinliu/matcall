@@ -2,7 +2,7 @@
 
 ![](img1.png)
 
-"MATLAB engine API for Python" is a little bit troublesome to handle. This Python module makes it easy to run MATLAB functions and use MATLAB classes in Python codes. You can do almost anything in Python as in MATLAB.
+This Python module makes it much easier to run MATLAB functions and use MATLAB classes in Python codes. You can do almost anything in Python as in MATLAB.
 
 ## Contents
 
@@ -16,7 +16,7 @@ Following included:
 
 ## Preparation
 
-First launch MATLAB in Python and make an instance by `mat = MatCaller()`. **Make sure you have downloaded MATLAB engine API for Python correctly**.
+First launch MATLAB in Python and make an instance by `mat = MatCaller()`. **Make sure you have downloaded MATLAB engine API for Python correctly and added its path by such as sys.path.append**.
 
 ```python
 from matcall import MatCaller
@@ -25,12 +25,13 @@ import numpy as np
 mat = MatCaller()
 ```
 
-To add a path "C:/Users/..." to MATLAB engine, use addpath(path) function. You can also recursively add directory paths that .m files are contained.
+To add paths to MATLAB engine, use `addpath` function. You can also recursively add directory paths that .m files are contained.
 
 ```python
-mat.addpath(r"C:\Users\...")
-mat.addpath(r"C:\Users\...", child=True)
+mat.addpath("path/to/the/file")
+mat.addpath("path/to/the/file", recursive=True)
 ```
+
 ## MATLAB to Python conversion table
 
 |MATLAB|Python|
@@ -46,7 +47,7 @@ mat.addpath(r"C:\Users\...", child=True)
 |`function_handle`|`MatFunction`|
 |others|`MatClass`|
 
-## MATLAB to Python conversion table
+## Python to MATLAB conversion table
 
 |Python|MATLAB|
 |:----:|:----:|
@@ -61,27 +62,7 @@ mat.addpath(r"C:\Users\...", child=True)
 
 # Basic Usage
 
-## Use MATLAB Console
-
-You can run MATLAB using `console` and obtain one object as return value.
-
-```python
-out = mat.console()
-```
-```
-    --- Input ---
-(MATLAB) In >>> a = 1:5;
-(MATLAB) In >>> b = sqrt(a);
-(MATLAB) In >>> return b
-```
-```python
-out
-```
-```
-[Out]
-    array([1.        , 1.41421356, 1.73205081, 2.        , 2.23606798])
-```
-IPython magic is also supported.
+Run MATLAB as if in MATLAB console.
 
 ```python
 %%matlab
@@ -90,17 +71,42 @@ data.signal = sin(data.time/5.2);
 data.name = "wave";
 data
 ```
+
 ```
-[Out]
+data = 
 
-    data = 
+struct with fields:
 
-    struct with fields:
-
-        time: [1x100 double]
-        signal: [1x100 double]
-        name: "wave"
+    time: [1x100 double]
+    signal: [1x100 double]
+    name: "wave"
 ```
+
+MATLAB workspace is accessible via `MatCaller` object. MATLAB objects are automatically converted to Python objects:
+
+```python
+mat.data.name
+```
+
+```
+'wave'
+```
+
+or vice versa:
+
+```python
+mat.x = 10
+%matlab x
+```
+
+```
+x =
+
+  int64
+
+   10
+```
+
 
 
 ## Use MATLAB Functions
@@ -112,8 +118,7 @@ mMax = mat.translate("max")
 mMax
 ```
 ```
-[Out]
-    MatFunction<max>
+MatFunction<max>
 ```
 ```python
 mMax(np.array([3,6,4]))
@@ -128,30 +133,22 @@ sq = mat.translate("@(t)t^2")
 sq 
 ```
 ```
-[Out]
-    MatFunction<@(t)t^2>
+MatFunction<@(t)t^2>
 ```
 ```python
 sq(10)
 ```
 ```
-[Out]
-    100
+100
 ```
 
 ## Use MATLAB Classes, Properties and Methods
 
-Translation of MATLAB class constructor is also possible. Here constructor (not the class itself!) is returned and Python class will be dynamically defined with it. Same object
-is sent to MATLAB workspace only when it's needed.
+Translation of MATLAB class constructor is also possible. Here constructor (not the class itself!) is returned and Python class will be dynamically defined with it. Same object is sent to MATLAB workspace only when it's needed.
 
 ```python
 mycls = mat.translation("MyClass")
 obj = mycls(x1, ..., xn)
-obj
-```
-```
-[Out]
-    MatClass<MyClass>
 ```
 
 Setter and getter are also (mostly) defined so that you can deal with the properties in a very simple way.
@@ -162,9 +159,10 @@ pl = mplot(x, y)    # A figure window is openned here.
 pl.Color = "red"    # The line color is changed to red here.
 ```
 
-A struct object in MATLAB is translated to dict object in Python by default. However, it is a little bit troublesome to access the contents of dict, compared to MATLAB struct (at least you need to type double quotation every time). Thus, here in matcall a `MatStruct` object is returned instead.
+Examples
+--------
 
-Following example shows how to solve ODE using MATLAB `ode45` function.
+#### Solve ODE using MATLAB `ode45` function.
 
 ```python
 xlim = np.array([0., 20.])
@@ -175,28 +173,17 @@ result = ode45(vdp1, xlim, v0)
 result
 ```
 ```
-[Out]
-    MatStruct with 6 fields:
-        solver: ode45
-        extdata: MatStruct object (3 fields)
-            x: np.ndarray (60,)
-            y: np.ndarray (2, 60)
-        stats: MatStruct object (3 fields)
-        idata: MatStruct object (2 fields)
+MatStruct with 6 fields:
+    solver: ode45
+    extdata: MatStruct object (3 fields)
+        x: np.ndarray (60,)
+        y: np.ndarray (2, 60)
+    stats: MatStruct object (3 fields)
+    idata: MatStruct object (2 fields)
 ```
 
 
-## Operators and Built-in Functions
-
-Special methods are converted correctly so that almost all the calculations overloaded in MATLAB are supported in Python. The table below shows the examples of overloads.
-
-|MATLAB|Python|What is supported|
-|:----:|:----:|:---------------:|
-|`plus`|`__add__`, `__radd__`| `x + y`|
-|`eq`|`__eq__`|`x == y`|
-|`char`|`__str__`|`str(x), print(x)`|
-
-Following code is an example of calculating derivative using symbolic variables.
+#### Calculate derivative using symbolic variables.
 
 ```python
 sym = mat.translate("sym")
@@ -207,6 +194,5 @@ f = A * np.sin(x)**2
 print(diff(f))
 ```
 ```
-[Out]
-    2*A*cos(x)*sin(x)
+2*A*cos(x)*sin(x)
 ```
