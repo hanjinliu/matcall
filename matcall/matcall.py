@@ -5,6 +5,7 @@ import numpy as np
 import os
 import re
 import glob
+import tempfile
 from .const import BASIC_TYPES, DTYPE_MAP, MATLAB_ARRAYS, SPECIAL_METHODS
 from .struct import MatStruct
 
@@ -12,6 +13,8 @@ ENGINE = eng.start_matlab()
 
 from matlab import object as MatObject
 
+_MATCALL_DIRECTORY = os.path.dirname(__file__)
+ENGINE.addpath(_MATCALL_DIRECTORY)
 
 class MatCaller:
     __all_methods__ = ["addpath", "translate", "eval"]
@@ -43,7 +46,7 @@ class MatCaller:
                 filelist = os.listdir(path)
                 for file in filelist:
                     if file.endswith(".m"):
-                        path = os.path.split(path)[0]
+                        path = os.path.dirname(path)
                         ENGINE.addpath(path)
                         break
         else:
@@ -440,7 +443,9 @@ _HTML_PATTERN = re.compile(r"<[^>]*?>")
 def _remove_html(s:str):
     _disps = s.split("\n")
     for i, line in enumerate(_disps):
-        if '<a href="' in line and "</a>" in line:
+        n0 = line.count("<")
+        n1 = line.count(">")
+        if "</" in line and n0 == n1 and n0 > 1:
             _disps[i] = _HTML_PATTERN.sub("", line)
     return "\n".join(_disps)
 
@@ -449,19 +454,40 @@ def _remove_html(s:str):
 try:
     from IPython.core.magic import register_line_cell_magic
     @register_line_cell_magic
-    def matlab(line, cell=None):
+    def matlab(line:str, cell:str=None):
         if cell is None:
             cell = line
-        try:
-            _disp = ENGINE.evalc(cell, nargout=1)
-        except Exception as e:
-            err_msg = str(e)
-            if err_msg.startswith("Error: "):
-                err_msg = err_msg[7:]
-            print(f"{e.__class__.__name__}: {err_msg}")
+            
+        if cell.startswith("function "):
+            # Function cannot be defined in this way. We have to make a temporary ".m" file.
+            pref = cell.split("(")[0]
+            if "=" in pref:
+                pref = pref.split("=")[1]
+            funcname = pref.strip()
+            with tempfile.NamedTemporaryFile(dir=_MATCALL_DIRECTORY, 
+                                             suffix=".m", 
+                                             delete=False) as tf:
+                filepath = tf.name
+                with open(filepath, mode="w+") as f:
+                    f.write(cell)
+            
+            funcpath = os.path.join(_MATCALL_DIRECTORY, funcname + ".m")
+            if os.path.exists(funcpath):
+                os.remove(funcpath)
+            os.rename(filepath, funcpath)
+            
         else:
-            if not cell.endswith(";"):
-                print(_remove_html(_disp))
-                
+            try:
+                _disp = ENGINE.evalc(cell, nargout=1)
+            except Exception as e:
+                err_msg = str(e)
+                if err_msg.startswith("Error: "):
+                    err_msg = err_msg[7:]
+                print(f"{e.__class__.__name__}: {err_msg}")
+            else:
+                if not cell.endswith(";"):
+                    print(_remove_html(_disp))
+    
+    
 except ImportError:
     pass
