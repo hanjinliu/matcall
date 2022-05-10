@@ -1,4 +1,5 @@
 from __future__ import annotations
+from functools import cached_property
 import matlab.engine as eng
 from matlab.engine import MatlabExecutionError
 import numpy as np
@@ -26,19 +27,20 @@ class MatCaller:
             root = os.environ["MATLABPATH"]
             ENGINE.addpath(root)
         
-    def addpath(self, path:str, recursive:bool=False):
+    def addpath(self, path: str, recursive: bool = False):
         """
         Add path to MATLAB engine.
 
         Parameters
         ----------
-        dirpath : str
+        path : str
             The directory path to add.
         recursive : bool, optional
             If directories that contain ".m" file will be recursively added.
             By default False.
 
         """
+        path = str(path)
         if not os.path.exists(path):
             raise FileNotFoundError(f"Path '{path}' does not exist.")
         
@@ -56,7 +58,13 @@ class MatCaller:
                     
         return None
     
-    def translate(self, funcname:str, nargout:int=-1, import_as=None, recursive=False):
+    def translate(
+        self,
+        funcname: str,
+        nargout: int = -1,
+        import_as: str | None = None,
+        recursive: bool = False,
+    ):
         """
         Make MATLAB function without conversion between python object and MATLAB object.
         This is the simplest way to run MATLAB function. This function also suppors
@@ -100,7 +108,7 @@ class MatCaller:
         return func
     
 
-    def eval(self, matlab_input:str, nargout:int=-1):
+    def eval(self, matlab_input: str, nargout: int = -1):
         """
         Easily run a MATLAB-type input. Since the keyword argument "nargout" must be manually 
         assigned when using matlab.enging, it is troublesome for a interface. This function 
@@ -137,7 +145,7 @@ class MatCaller:
         _out_py = to_pyobj(_out)
         return _out_py    
     
-    def __getattr__(self, key:str):
+    def __getattr__(self, key: str):
         try:
             out = to_pyobj(ENGINE.workspace[key])
         except MatlabExecutionError:
@@ -147,7 +155,7 @@ class MatCaller:
                 raise AttributeError(f"Could not resolve attribute {key!r}.")
         return out
     
-    def __setattr__(self, key:str, value):
+    def __setattr__(self, key: str, value):
         ENGINE.workspace[key] = to_matobj(value)
         
 
@@ -157,7 +165,8 @@ class MatFunction:
     This class can also be used for class constructor. This is the simplest way to 
     run MATLAB function if no need for directly using MATLAB objects.
     """
-    def __init__(self, name:str, nargout:int=-1):
+    
+    def __init__(self, name: str, nargout: int = -1):
         """
         Parameters
         ----------
@@ -171,18 +180,21 @@ class MatFunction:
         if isinstance(name, str):
             if name.startswith("@"):
                 # lambda function
-                self.fhandle = ENGINE.eval(name, nargout=1) 
+                self.fhandle = ENGINE.eval(name, nargout=1)
+                self.__name__ = name[1:]
             else:
                 # symbolic function
                 if not hasattr(ENGINE, name):
                     raise NameError(f"Unrecognized function: {name}")
                 self.fhandle = ENGINE.eval("@" + name, nargout=1)
+                self.__name__ = name
             self.name = name
             
         elif isinstance(name, MatObject):
             # function handle
             self.fhandle = name
             self.name = ENGINE.func2str(name)
+            self.__name__ = self.name.lstrip("@")
             
         else:
             raise TypeError("'name' must be str or matlab.object of function_handle")
@@ -213,7 +225,7 @@ class MatFunction:
         
         return pyobj
     
-    @property
+    @cached_property
     def __doc__(self):
         # docstring
         doc = ENGINE.evalc(f"help {self.name}")
@@ -227,6 +239,7 @@ _MATLAB_CLASS: dict[str, type] = {}
 class MatClass:
     """
     This class makes matlab.object compatible to Python object.
+    
     Because matlab.object is just a handle of MATLAB class instance, it is troublesome to
     access properties or methods:
     - For properties, they must be accessed by eng.eval("obj.prop").
@@ -268,7 +281,7 @@ class MatClass:
         return hash(self._objname)
 
 
-def define_property(key):
+def define_property(key: str):
     """
     Dynamically define setter and getter for property.
     """
@@ -430,7 +443,6 @@ def to_pyobj(matobj):
        table     -> DataFrame
        others    -> MatClass object (if possible)
     """
-    # TODO: table <-> data frame?
     if matobj is None:
         _out_py = matobj
     elif isinstance(matobj, BASIC_TYPES):
