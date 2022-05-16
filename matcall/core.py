@@ -45,7 +45,11 @@ class MatlabWorkspace:
     
     def __setattr__(self, key: str, value):
         ENGINE.workspace[key] = to_matobj(value)
+    
+    __getitem__ = __getattr__
+    __setitem__ = __setattr__
 
+workspace = MatlabWorkspace()
 
 def addpath(path: str, recursive: bool = False):
     """
