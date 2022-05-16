@@ -8,7 +8,7 @@ from ._utils import remove_html
 _MATCALL_DIRECTORY = os.path.dirname(__file__)
 
 @register_line_cell_magic
-def matlab(line:str, cell:str=None):
+def matlab(line: str, cell: str | None = None):
     if cell is None:
         cell = line
         
@@ -18,9 +18,9 @@ def matlab(line:str, cell:str=None):
         if "=" in pref:
             pref = pref.split("=")[1]
         funcname = pref.strip()
-        with tempfile.NamedTemporaryFile(dir=_MATCALL_DIRECTORY, 
-                                            suffix=".m", 
-                                            delete=False) as tf:
+        with tempfile.NamedTemporaryFile(
+            dir=_MATCALL_DIRECTORY, suffix=".m", delete=False
+        ) as tf:
             filepath = tf.name
             with open(filepath, mode="w+") as f:
                 f.write(cell)

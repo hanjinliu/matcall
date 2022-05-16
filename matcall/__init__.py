@@ -6,7 +6,7 @@ __all__ = ["MatStruct", "translate", "eval", "addpath"]
 
 try:
     from .ipython import matlab
-except ImportError:
+except (ImportError, NameError):
     pass
 else:
     __all__.append("matlab")

@@ -2,6 +2,9 @@ from __future__ import annotations
 from functools import cached_property
 import os
 from pathlib import Path
+from typing import overload, NewType
+import warnings
+
 _MATCALL_DIRECTORY = Path(__file__).parent
 _INFO_PATH = _MATCALL_DIRECTORY / "matcall-info.txt"
 if _INFO_PATH.exists():
@@ -75,10 +78,24 @@ def addpath(path: str, recursive: bool = False):
                 
     return None
 
+FunctionName = NewType("FunctionName", str)
+
+@overload
 def translate(
-    funcname: str,
+    mpath: str | Path | bytes,
     nargout: int = -1,
     recursive: bool = False,
+) -> MatFunction:
+    ...
+
+@overload
+def translate(
+    mpath: FunctionName,
+    nargout: int = -1,
+) -> MatFunction:
+    ...
+
+def translate(funcname, nargout: int = -1, recursive: bool = False,
 ):
     """
     Make MATLAB function without conversion between python object and MATLAB object.
@@ -87,7 +104,7 @@ def translate(
 
     Parameters
     ----------
-    funcname : str
+    funcname : str or path-like
         The name of MATLAB function, or the absolute path to ".m" file.
     nargout : int, optional
         Number of output. Some functions are overloaded, therefore without nargout 
@@ -99,10 +116,17 @@ def translate(
     -------
     MatFunction object
     """
+    funcname = str(funcname)
     if os.path.exists(funcname) and funcname.endswith(".m"):
         dirpath = os.path.dirname(funcname)
         funcname = os.path.splitext(os.path.basename(funcname))[0]
         addpath(dirpath, recursive=recursive)
+    else:
+        if recursive:
+            warnings.warn(
+                "'recursive=True' does nothing if function name is given",
+                UserWarning,
+            )
     
     return MatFunction(funcname, nargout=nargout)
 
