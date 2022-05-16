@@ -1,169 +1,157 @@
 from __future__ import annotations
 from functools import cached_property
+import os
+from pathlib import Path
+_MATCALL_DIRECTORY = Path(__file__).parent
+_INFO_PATH = _MATCALL_DIRECTORY / "matcall-info.txt"
+if _INFO_PATH.exists():
+    import sys
+    with open(_INFO_PATH, mode="r") as f:
+        s = f.read().strip()
+    sys.path.append(s)
+
 import matlab.engine as eng
 from matlab.engine import MatlabExecutionError
 import numpy as np
 import pandas as pd
-import os
-import re
 import glob
-import tempfile
-from pathlib import Path
 from .const import BASIC_TYPES, DTYPE_MAP, MATLAB_ARRAYS, SPECIAL_METHODS
 from .struct import MatStruct
+from ._utils import remove_html
 
 ENGINE = eng.start_matlab()
 
 from matlab import object as MatObject
 
-_MATCALL_DIRECTORY = os.path.dirname(__file__)
-ENGINE.addpath(_MATCALL_DIRECTORY)
+ENGINE.addpath(str(_MATCALL_DIRECTORY))
 
-class MatCaller:
-    __all_methods__ = ["addpath", "translate", "eval"]
-    
-    def __init__(self):
-        if "MATLABPATH" in os.environ.keys():
-            root = os.environ["MATLABPATH"]
-            ENGINE.addpath(root)
-        
-    def addpath(self, path: str, recursive: bool = False):
-        """
-        Add path to MATLAB engine.
+if "MATLABPATH" in os.environ.keys():
+    root = os.environ["MATLABPATH"]
+    ENGINE.addpath(root)
 
-        Parameters
-        ----------
-        path : str
-            The directory path to add.
-        recursive : bool, optional
-            If directories that contain ".m" file will be recursively added.
-            By default False.
-
-        """
-        path = str(path)
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"Path '{path}' does not exist.")
-        
-        if recursive:
-            paths = glob.glob(f"{path}{os.sep}**{os.sep}", recursive=True)
-            for path in paths:
-                filelist = os.listdir(path)
-                for file in filelist:
-                    if file.endswith(".m"):
-                        path = os.path.dirname(path)
-                        ENGINE.addpath(path)
-                        break
-        else:
-            ENGINE.addpath(path)
-                    
-        return None
-    
-    def translate(
-        self,
-        funcname: str,
-        nargout: int = -1,
-        import_as: str | None = None,
-        recursive: bool = False,
-    ):
-        """
-        Make MATLAB function without conversion between python object and MATLAB object.
-        This is the simplest way to run MATLAB function. This function also suppors
-        lambda function.
-
-        Parameters
-        ----------
-        funcname : str
-            The name of MATLAB function, or the absolute path to ".m" file.
-        nargout : int, optional
-            Number of output. Some functions are overloaded, therefore without nargout 
-            they will throw error. By default -1.
-        import_as : str or None, optional
-            The methodname used in Python. In case the function's name conflicts with 
-            the member functions. By default None. 
-        recursive : bool, optional
-            Passed to addpath() if funcname was an absolute path.
-
-        Returns
-        -------
-        MatFunction object
-        """
-        if os.path.exists(funcname) and funcname.endswith(".m"):
-            dirpath = os.path.dirname(funcname)
-            funcname = os.path.splitext(os.path.basename(funcname))[0]
-            self.addpath(dirpath, recursive=recursive)
-        
-        func = MatFunction(funcname, nargout=nargout)
-        
-        if import_as is None:
-            import_as = funcname
-            
-        if import_as in self.__all_methods__:
-            raise ValueError(f"Cannot overload MatCaller member function: {import_as}")
-        
-        if import_as.startswith("__") and import_as.endswith("__"):
-            raise ValueError("Avoid names that start and end with '__'.")
-        
-        import_as.startswith("@") or setattr(self, import_as, func)
-        
-        return func
-    
-
-    def eval(self, matlab_input: str, nargout: int = -1):
-        """
-        Easily run a MATLAB-type input. Since the keyword argument "nargout" must be manually 
-        assigned when using matlab.enging, it is troublesome for a interface. This function 
-        enables automatic determination of nargout. 
-        
-        Usage:
-        >>> main_instance.eval("arr = [0, 1, 2, 3, 4]")
-        >>> main_instance.eval("sqrt(arr)")
-        """
-        if matlab_input == "":
-            return None
-        
-        if nargout < 0:
-            if ";" in matlab_input:
-                nargout = 0
-            elif "=" in matlab_input:
-                if "==" in matlab_input:
-                    nargout = 1
-                else:
-                    nargout = 0
-            elif "@" in matlab_input:
-                nargout = 1
-            elif "(" in matlab_input:
-                funcname, _ = matlab_input.split("(", 1)
-                nargout = int(ENGINE.nargout(funcname, nargout=1))
-                if nargout < 0:
-                    nargout = 1
-            elif " " in matlab_input:
-                nargout = 0
-            else:
-                nargout = 1
-        
-        _out = ENGINE.eval(matlab_input, nargout=nargout)
-        _out_py = to_pyobj(_out)
-        return _out_py    
-    
+class MatlabWorkspace:
     def __getattr__(self, key: str):
         try:
             out = to_pyobj(ENGINE.workspace[key])
         except MatlabExecutionError:
             try:
-                out = self.translate(key)
+                out = translate(key)
             except Exception:
                 raise AttributeError(f"Could not resolve attribute {key!r}.")
         return out
     
     def __setattr__(self, key: str, value):
         ENGINE.workspace[key] = to_matobj(value)
-        
+
+
+def addpath(path: str, recursive: bool = False):
+    """
+    Add path to MATLAB engine.
+
+    Parameters
+    ----------
+    path : str
+        The directory path to add.
+    recursive : bool, optional
+        If directories that contain ".m" file will be recursively added.
+        By default False.
+
+    """
+    path = str(path)
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Path '{path}' does not exist.")
+    
+    if recursive:
+        paths = glob.glob(f"{path}{os.sep}**{os.sep}", recursive=True)
+        for path in paths:
+            filelist = os.listdir(path)
+            for file in filelist:
+                if file.endswith(".m"):
+                    path = os.path.dirname(path)
+                    ENGINE.addpath(path)
+                    break
+    else:
+        ENGINE.addpath(path)
+                
+    return None
+
+def translate(
+    funcname: str,
+    nargout: int = -1,
+    recursive: bool = False,
+):
+    """
+    Make MATLAB function without conversion between python object and MATLAB object.
+    This is the simplest way to run MATLAB function. This function also suppors
+    lambda function.
+
+    Parameters
+    ----------
+    funcname : str
+        The name of MATLAB function, or the absolute path to ".m" file.
+    nargout : int, optional
+        Number of output. Some functions are overloaded, therefore without nargout 
+        they will throw error. By default -1.
+    recursive : bool, optional
+        Passed to addpath() if funcname was an absolute path.
+
+    Returns
+    -------
+    MatFunction object
+    """
+    if os.path.exists(funcname) and funcname.endswith(".m"):
+        dirpath = os.path.dirname(funcname)
+        funcname = os.path.splitext(os.path.basename(funcname))[0]
+        addpath(dirpath, recursive=recursive)
+    
+    return MatFunction(funcname, nargout=nargout)
+
+
+def eval(matlab_input: str, nargout: int = -1):
+    """
+    Easily run a MATLAB-type input. Since the keyword argument "nargout" must be
+    manually assigned when using matlab.enging, it is troublesome for a interface. 
+    This function enables automatic determination of nargout. 
+    
+    Usage:
+    >>> main_instance.eval("arr = [0, 1, 2, 3, 4]")
+    >>> main_instance.eval("sqrt(arr)")
+    """
+    if matlab_input == "":
+        return None
+    
+    if nargout < 0:
+        if ";" in matlab_input:
+            nargout = 0
+        elif "=" in matlab_input:
+            if "==" in matlab_input:
+                nargout = 1
+            else:
+                nargout = 0
+        elif "@" in matlab_input:
+            nargout = 1
+        elif "(" in matlab_input:
+            funcname, _ = matlab_input.split("(", 1)
+            nargout = int(ENGINE.nargout(funcname, nargout=1))
+            if nargout < 0:
+                nargout = 1
+        elif " " in matlab_input:
+            nargout = 0
+        else:
+            nargout = 1
+    
+    _out = ENGINE.eval(matlab_input, nargout=nargout)
+    _out_py = to_pyobj(_out)
+    return _out_py
 
 class MatFunction:
     """
-    Run MATLAB function without conversion between python object and MATLAB object.
-    This class can also be used for class constructor. This is the simplest way to 
-    run MATLAB function if no need for directly using MATLAB objects.
+    MATLAB function object.
+    
+    This object can run MATLAB function without conversion between python object
+    and MATLAB object. This class can also be used for class constructor. This is
+    the simplest way to run MATLAB function if no need for directly using MATLAB 
+    objects.
     """
     
     def __init__(self, name: str, nargout: int = -1):
@@ -172,9 +160,9 @@ class MatFunction:
         ----------
         name : str or matlab.object of function_handle
             The name of function used in MATLAB
-        nargout : int, optional
-            The number of output. Some functions are overloaded, therefore without nargout
-            they may throw error. By default -1.
+        nargout : int, default is -1
+            The number of output. Some functions are overloaded, therefore without 
+            ``nargout`` they may throw error.
         """
         # determine fhandle and name
         if isinstance(name, str):
@@ -193,7 +181,7 @@ class MatFunction:
         elif isinstance(name, MatObject):
             # function handle
             self.fhandle = name
-            self.name = ENGINE.func2str(name)
+            self.name: str = ENGINE.func2str(name)
             self.__name__ = self.name.lstrip("@")
             
         else:
@@ -209,6 +197,7 @@ class MatFunction:
                     nargout = 1
                     
         self.nargout = nargout
+        self.__module__ = "matcall"
     
     def __repr__(self):
         return f"MatFunction<{self.name}>"
@@ -229,7 +218,7 @@ class MatFunction:
     def __doc__(self):
         # docstring
         doc = ENGINE.evalc(f"help {self.name}")
-        return _remove_html(doc)
+        return remove_html(doc)
     
     # TODO: __signature__
         
@@ -465,57 +454,3 @@ def to_pyobj(matobj):
         _out_py = matobj
 
     return _out_py
-
-_HTML_PATTERN = re.compile(r"<[^>]*?>")
-
-def _remove_html(s:str):
-    _disps = s.split("\n")
-    for i, line in enumerate(_disps):
-        n0 = line.count("<")
-        n1 = line.count(">")
-        if "</" in line and n0 == n1 and n0 > 1:
-            _disps[i] = _HTML_PATTERN.sub("", line)
-    return "\n".join(_disps)
-
-
-# IPython magic
-try:
-    from IPython.core.magic import register_line_cell_magic
-    @register_line_cell_magic
-    def matlab(line:str, cell:str=None):
-        if cell is None:
-            cell = line
-            
-        if cell.startswith("function "):
-            # Function cannot be defined in this way. We have to make a temporary ".m" file.
-            pref = cell.split("(")[0]
-            if "=" in pref:
-                pref = pref.split("=")[1]
-            funcname = pref.strip()
-            with tempfile.NamedTemporaryFile(dir=_MATCALL_DIRECTORY, 
-                                             suffix=".m", 
-                                             delete=False) as tf:
-                filepath = tf.name
-                with open(filepath, mode="w+") as f:
-                    f.write(cell)
-            
-            funcpath = os.path.join(_MATCALL_DIRECTORY, funcname + ".m")
-            if os.path.exists(funcpath):
-                os.remove(funcpath)
-            os.rename(filepath, funcpath)
-            
-        else:
-            try:
-                _disp = ENGINE.evalc(cell, nargout=1)
-            except Exception as e:
-                err_msg = str(e)
-                if err_msg.startswith("Error: "):
-                    err_msg = err_msg[7:]
-                print(f"{e.__class__.__name__}: {err_msg}")
-            else:
-                if not cell.endswith(";"):
-                    print(_remove_html(_disp))
-    
-    
-except ImportError:
-    pass
