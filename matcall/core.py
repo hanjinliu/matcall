@@ -15,7 +15,7 @@ from matlab.engine import MatlabExecutionError
 import numpy as np
 import pandas as pd
 import glob
-from .const import BASIC_TYPES, DTYPE_MAP, MATLAB_ARRAYS, SPECIAL_METHODS
+from ._const import BASIC_TYPES, DTYPE_MAP, MATLAB_ARRAYS, SPECIAL_METHODS
 from .struct import MatStruct
 from ._utils import remove_html
 
@@ -244,7 +244,7 @@ class MatClass:
         self._obj = obj
     
     def __repr__(self):
-        return f"MatClass<{self.__class__._real_name}> object at {hex(id(self))}"
+        return f"<{self.__class__._real_name}> object at {hex(id(self))}"
     
     def _send(self):
         """

@@ -5,7 +5,7 @@ def register_engine(path: str):
     save_path = Path(__file__).parent / "matcall" / "matcall-info.txt"
     sys.path.append(str(path))
     try:
-        from .matcall import __version__
+        import matlab.engine as eng
     except ImportError as e:
         if e.msg == "No module named 'matlab'":
             raise ValueError(

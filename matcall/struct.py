@@ -1,5 +1,5 @@
 import numpy as np
-from .const import *
+from ._const import *
 
 class MatStruct:
     """
