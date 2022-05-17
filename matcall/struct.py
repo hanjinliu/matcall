@@ -1,5 +1,6 @@
+from __future__ import annotations
 import numpy as np
-from ._const import *
+from ._const import BASIC_TYPES
 
 class MatStruct:
     """
@@ -16,9 +17,10 @@ class MatStruct:
     >>> st.arr
     array([0, 1, 2, 3, 4])
     
-    Attribute '_all' and '_longest' does not conflict with other field names because symbols
-    cannot start with underscore in MATLAB.
+    Attribute '_all' does not conflict with other field names because symbols cannot
+    start with underscore in MATLAB.
     """
+    _all: list[str]
     
     def __init__(self, dict_=None):
         dict_ = dict_ or dict()

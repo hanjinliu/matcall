@@ -30,10 +30,11 @@ def mlarray(obj: ArrayLike):
             typecode = "d"
         else:
             raise TypeError(f"Unsupported complex type: {arr.dtype!r}.")
+    
     else:
         typecode = PYARRAY_TYPE_MAP[arr_t.dtype]
     
-    mlarr: "MLArray" = DTYPE_MAP[arr.dtype](is_complex=is_complex)
+    mlarr: "MLArray" = DTYPE_MAP[arr.dtype]()
     
     mlarr._size = arr_t.shape
     mlarr._strides = np.cumprod((1,) + arr.shape[:-1]).tolist()

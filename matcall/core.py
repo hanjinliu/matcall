@@ -13,8 +13,7 @@ if _INFO_PATH.exists():
         s = f.read().strip()
     sys.path.append(s)
 
-import matlab.engine as eng
-from matlab.engine import MatlabExecutionError
+from ._matlab import MatlabExecutionError, MatObject, ENGINE
 import numpy as np
 import pandas as pd
 import glob
@@ -22,11 +21,6 @@ from ._const import BASIC_TYPES, DTYPE_MAP, MATLAB_ARRAYS, SPECIAL_METHODS
 from .struct import MatStruct
 from ._utils import remove_html
 from .mlarray import mlarray, mlarray_to_numpy
-
-ENGINE = eng.start_matlab()
-
-from matlab import object as MatObject
-
 
 class MatlabWorkspace:
     def __getattr__(self, key: str):
@@ -332,10 +326,8 @@ def define_property(key: str):
     return property(getter, setter)
 
 def define_method(key):
-    """
-    Dynamically define setter and getter for methods.
-    """
-    def getter(self):
+    """Dynamically define setter and getter for methods."""
+    def getter(self: MatlabInterface):
         def func(*argin, nargout=1):
             inputlist = map(to_matobj, argin)
             outputlist = ENGINE.feval(key, self._obj, *inputlist, nargout=nargout)
@@ -421,8 +413,8 @@ def to_matobj(pyobj):
      
     """
     if isinstance(pyobj, np.ndarray):
-        # matobj = mlarray(pyobj)
-        matobj = to_mlarray_via_workspace(pyobj)
+        matobj = mlarray(pyobj)
+        # matobj = to_mlarray_via_workspace(pyobj)
     elif isinstance(pyobj, (list, tuple)):
         matobj = [to_matobj(each) for each in pyobj]
     elif isinstance(pyobj, BASIC_TYPES):

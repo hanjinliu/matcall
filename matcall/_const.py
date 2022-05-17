@@ -1,42 +1,53 @@
-from matlab import (double, single, uint8, int8, uint16, int16, 
-                    uint32, int32, uint64, int64, logical)
+from ._matlab import (
+    ml_double,
+    ml_single,
+    ml_complex64,
+    ml_complex128,
+    ml_uint8,
+    ml_int8,
+    ml_uint16,
+    ml_int16, 
+    ml_uint32,
+    ml_int32,
+    ml_uint64,
+    ml_int64,
+    ml_bool
+)
 import numpy as np
-from functools import partial
-
-complex64 = partial(single, is_complex=True)
-complex128 = partial(double, is_complex=True)
 
 # These types does not need conversion.
 BASIC_TYPES = (float, int, str, bool)
 
 # Conversion from numpy.dtype to type of MATLAB matrix.
 DTYPE_MAP = {
-    np.dtype("int8"): int8, 
-    np.dtype("int16"): int16,
-    np.dtype("int32"): int32, 
-    np.dtype("int64"): int64,
-    np.dtype("float16"): single,
-    np.dtype("float32"): single, 
-    np.dtype("float64"): double,
-    np.dtype("uint8"): uint8,
-    np.dtype("uint16"): uint16,
-    np.dtype("uint32"): uint32,
-    np.dtype("uint64"): uint64,
-    np.dtype("bool"): logical,
+    np.dtype("int8"): ml_int8, 
+    np.dtype("int16"): ml_int16,
+    np.dtype("int32"): ml_int32, 
+    np.dtype("int64"): ml_int64,
+    np.dtype("float16"): ml_single,
+    np.dtype("float32"): ml_single, 
+    np.dtype("float64"): ml_double,
+    np.dtype("complex64"): ml_complex64,
+    np.dtype("complex128"): ml_complex128,
+    np.dtype("uint8"): ml_uint8,
+    np.dtype("uint16"): ml_uint16,
+    np.dtype("uint32"): ml_uint32,
+    np.dtype("uint64"): ml_uint64,
+    np.dtype("bool"): ml_bool,
 }
 
 DTYPE_MAP_INV = {
-    int8: np.int8, 
-    int16: np.int16,
-    int32: np.int32, 
-    int64: np.int64,
-    single: np.float32, 
-    double: np.float64,
-    uint8: np.uint8,
-    uint16: np.uint16,
-    uint32: np.uint32,
-    uint64: np.uint64,
-    logical: np.bool_,
+    ml_int8: np.int8, 
+    ml_int16: np.int16,
+    ml_int32: np.int32, 
+    ml_int64: np.int64,
+    ml_single: np.float32, 
+    ml_double: np.float64,
+    ml_uint8: np.uint8,
+    ml_uint16: np.uint16,
+    ml_uint32: np.uint32,
+    ml_uint64: np.uint64,
+    ml_bool: np.bool_,
 }
 
 
@@ -69,8 +80,8 @@ PYARRAY_TYPE_MAP_INV = {
 }
 
 # Types of MATLAB matrix.
-MATLAB_ARRAYS = (double, single, uint8, int8, uint16, int16, 
-                 uint32, int32, uint64, int64, logical)
+MATLAB_ARRAYS = (ml_double, ml_single, ml_uint8, ml_int8, ml_uint16, ml_int16, 
+                 ml_uint32, ml_int32, ml_uint64, ml_int64, ml_bool)
 
 
 SPECIAL_METHODS = {
