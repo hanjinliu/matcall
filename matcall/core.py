@@ -2,7 +2,7 @@ from __future__ import annotations
 from functools import cached_property
 import os
 from pathlib import Path
-from typing import overload, NewType
+from typing import Any, overload, NewType
 import warnings
 
 _MATCALL_DIRECTORY = Path(__file__).parent
@@ -21,16 +21,12 @@ import glob
 from ._const import BASIC_TYPES, DTYPE_MAP, MATLAB_ARRAYS, SPECIAL_METHODS
 from .struct import MatStruct
 from ._utils import remove_html
+from .mlarray import mlarray, mlarray_to_numpy
 
 ENGINE = eng.start_matlab()
 
 from matlab import object as MatObject
 
-ENGINE.addpath(str(_MATCALL_DIRECTORY))
-
-if "MATLABPATH" in os.environ.keys():
-    root = os.environ["MATLABPATH"]
-    ENGINE.addpath(root)
 
 class MatlabWorkspace:
     def __getattr__(self, key: str):
@@ -44,7 +40,10 @@ class MatlabWorkspace:
         return out
     
     def __setattr__(self, key: str, value):
-        ENGINE.workspace[key] = to_matobj(value)
+        if isinstance(value, np.ndarray):
+            send_numpy_to_workspace(key, value)
+        else:
+            ENGINE.workspace[key] = to_matobj(value)
     
     __getitem__ = __getattr__
     __setitem__ = __setattr__
@@ -82,6 +81,12 @@ def addpath(path: str, recursive: bool = False):
                 
     return None
 
+addpath(str(_MATCALL_DIRECTORY))
+addpath(str(_MATCALL_DIRECTORY / "mfunctions"))
+
+if "MATLABPATH" in os.environ.keys():
+    addpath(os.environ["MATLABPATH"])
+
 FunctionName = NewType("FunctionName", str)
 
 @overload
@@ -99,8 +104,7 @@ def translate(
 ) -> MatFunction:
     ...
 
-def translate(funcname, nargout: int = -1, recursive: bool = False,
-):
+def translate(funcname, nargout: int = -1, recursive: bool = False):
     """
     Make MATLAB function without conversion between python object and MATLAB object.
     This is the simplest way to run MATLAB function. This function also suppors
@@ -228,9 +232,9 @@ class MatFunction:
         self.__module__ = "matcall"
     
     def __repr__(self):
-        return f"MatFunction<{self.name}>"
+        return f"MatFunction<{self.name!r}>"
     
-    def __call__(self, *argin):        
+    def __call__(self, *argin) -> Any:
         # make matlab inputs
         inputlist = map(to_matobj, argin)
                 
@@ -253,18 +257,18 @@ class MatFunction:
 
 _MATLAB_CLASS: dict[str, type] = {}
 
-class MatClass:
+class MatlabInterface:
     """
     This class makes matlab.object compatible to Python object.
     
-    Because matlab.object is just a handle of MATLAB class instance, it is troublesome to
-    access properties or methods:
+    Because matlab.object is just a handle of MATLAB class instance, it is 
+    troublesome to access properties or methods.
     - For properties, they must be accessed by eng.eval("obj.prop").
-    - For methods, inputs must be converted into MATLAB workspace every time and the function
-      must be called by e.g. eng.feval("func", obj, x1, ..., xn, nargout=...)
-    MatClass enables descriptions like 'obj.prop' or 'obj.func(x1, ..., xn)'.
-    To avoid wasting memory with unused objects, matlab.object is sent to MATLAB workspace
-    by NewClass._send() only when it is needed.
+    - For methods, inputs must be converted into MATLAB workspace every time and 
+      the function must be called by e.g. eng.feval("func", obj, x1, ..., xn, nargout=...)
+    MatlabInterface enables descriptions like 'obj.prop' or 'obj.func(x1, ..., xn)'.
+    To avoid wasting memory with unused objects, matlab.object is sent to MATLAB 
+    workspace by NewClass._send() only when it is needed.
     """
     _real_name: str
     
@@ -276,9 +280,9 @@ class MatClass:
     
     def _send(self):
         """
-        When Python needs to access matlab.object, the object is sent to MATLAB workspace by
-        this function. To avoid collision, the number of object in MATLAB is counted in
-        ThisClass._record.
+        When Python needs to access matlab.object, the object is sent to MATLAB 
+        workspace by this function. To avoid collision, the number of object in 
+        MATLAB is counted in ``_record``.
 
         Returns
         -------
@@ -299,10 +303,9 @@ class MatClass:
 
 
 def define_property(key: str):
-    """
-    Dynamically define setter and getter for property.
-    """
-    def getter(self: MatClass):
+    """Dynamically define setter and getter for property."""
+    
+    def getter(self: MatlabInterface):
         if hasattr(self, "get"):
             return to_pyobj(self.get(key))
         else:
@@ -310,7 +313,7 @@ def define_property(key: str):
             value = ENGINE.eval(f"{objname}.{key}", nargout=1)
             return to_pyobj(value)
     
-    def setter(self: MatClass, value):
+    def setter(self: MatlabInterface, value):
         objname = self._send()
         if hasattr(self, "set"):
             self.set(key, value)
@@ -373,14 +376,14 @@ def translate_obj(obj):
         except ImportError:
             return _dict
     
-    newclass_name = "_".join(_real_name.split("."))
+    newclass_name = f"matcall_class{hex(id(obj))}"
     
     if newclass_name in _MATLAB_CLASS:
         newclass = _MATLAB_CLASS[newclass_name]
     else:
         # Prepare class
         attrs = dict(_record = 0, _real_name=_real_name)
-        newclass = type(newclass_name, (MatClass,), attrs)
+        newclass = type(newclass_name, (MatlabInterface,), attrs)
         _MATLAB_CLASS[newclass_name] = newclass
         
         # define setter and getter
@@ -418,8 +421,8 @@ def to_matobj(pyobj):
      
     """
     if isinstance(pyobj, np.ndarray):
-        listobj = pyobj.tolist()
-        matobj = DTYPE_MAP[pyobj.dtype](listobj)
+        # matobj = mlarray(pyobj)
+        matobj = to_mlarray_via_workspace(pyobj)
     elif isinstance(pyobj, (list, tuple)):
         matobj = [to_matobj(each) for each in pyobj]
     elif isinstance(pyobj, BASIC_TYPES):
@@ -428,7 +431,7 @@ def to_matobj(pyobj):
         matobj = {k: to_matobj(v) for k, v in pyobj.items()}
     elif isinstance(pyobj, MatFunction):
         matobj = pyobj.fhandle
-    elif isinstance(pyobj, MatClass):
+    elif isinstance(pyobj, MatlabInterface):
         matobj = pyobj._obj
     elif isinstance(pyobj, pd.DataFrame):
         _dict = {k: DTYPE_MAP[v.dtype](np.asarray(v).reshape(-1, 1).tolist()) 
@@ -471,7 +474,7 @@ def to_pyobj(matobj):
     elif matobj.size == (1, 1) and isinstance(matobj[0][0], BASIC_TYPES):
         _out_py = matobj[0][0]
     elif isinstance(matobj, MATLAB_ARRAYS):
-        _out_py = np.array(matobj)
+        _out_py = mlarray_to_numpy(matobj)
         if _out_py.shape[0] == 1:
             _out_py = _out_py[0]
         elif _out_py.ndim == 2 and _out_py.shape[1] == 1:
@@ -482,3 +485,21 @@ def to_pyobj(matobj):
         _out_py = matobj
 
     return _out_py
+
+def send_numpy_to_workspace(key: str, arr: np.ndarray):
+    filepath = str(_MATCALL_DIRECTORY / f"temp{hex(id(arr))}.bin")
+    try:
+        with open(filepath, mode="w+b") as f:
+            f.write(arr.T.tobytes())
+        shape = list(arr.shape)
+        dtype = DTYPE_MAP[arr.dtype].__name__
+        expr = f"{key} = bin_to_mlarray({filepath!r}, {shape!r}, {dtype!r});"
+        ENGINE.eval(expr, nargout=0)
+    finally:
+        os.remove(filepath)
+    return None
+
+def to_mlarray_via_workspace(arr: np.ndarray):
+    key = f"matcall_ndarray{hex(id(arr))}"
+    send_numpy_to_workspace(key, arr)
+    return ENGINE.workspace[key]

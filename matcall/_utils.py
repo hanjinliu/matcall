@@ -2,7 +2,7 @@ import re
 
 _HTML_PATTERN = re.compile(r"<[^>]*?>")
 
-def remove_html(s:str):
+def remove_html(s: str):
     _disps = s.split("\n")
     for i, line in enumerate(_disps):
         n0 = line.count("<")
