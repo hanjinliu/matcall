@@ -6,12 +6,30 @@ try:
     from .core import MatStruct, translate, eval, addpath, workspace
 
     __all__ = ["MatStruct", "translate", "eval", "addpath", "workspace"]
+    
+    def MatCaller(*args, **kwargs):
+        import warnings
+        warnings.warn(
+            "MatCaller is deprecated and will be removed soon. You no longer have to "
+            "construct MatCaller object. Methods 'translate', 'eval', 'addpath' "
+            "and 'workspace' are available as functions so that just import them like:\n"
+            ">>> from matcall import addpath.",
+            DeprecationWarning,
+        )
+        class MatCaller:
+            pass
+        obj = MatCaller()
+        obj.translate = translate
+        obj.eval = eval
+        obj.addpath = addpath
+        obj.workspace = workspace
+
 except ImportError as e:
     if e.msg.startswith("No module named 'matlab'"):
         import warnings
         warnings.warn(
             "MATLAB Python API not found in paths. Please register path to the "
-            "API directory you've downloaded by:"
+            "API directory you've downloaded by:\n"
             ">>> from matcall import register_engine\n"
             ">>> register_engine(path/to/matlab)\n"
             "For more information, see https://jp.mathworks.com/help/matlab/matlab-engine-for-python.html?lang=en",
@@ -26,22 +44,6 @@ except (ImportError, NameError):
     pass
 else:
     __all__.append("matlab")
-
-def MatCaller(*args, **kwargs):
-    import warnings
-    warnings.warn(
-        "MatCaller is deprecated and will be removed soon. You no longer have to "
-        "construct MatCaller object. Methods 'translate', 'eval', 'addpath' "
-        "and 'workspace' are available as functions so that just import them like:\n"
-        ">>> from matcall import addpath.",
-        DeprecationWarning,
-    )
-    obj = object()
-    obj.translate = translate
-    obj.eval = eval
-    obj.addpath = addpath
-    obj.workspace = workspace
-
 
 
 def register_engine(path: str):
